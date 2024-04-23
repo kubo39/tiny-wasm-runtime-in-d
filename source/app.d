@@ -1,0 +1,3 @@
+import binary;
+
+void main() {}
