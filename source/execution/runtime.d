@@ -174,3 +174,14 @@ unittest
     }
     
 }
+
+@("not found export function")
+unittest
+{
+    import std.exception;
+    import std.process;
+    auto p = executeShell("wasm-tools parse source/fixtures/func_add.wat");
+    const (ubyte)[] wasm = cast(ubyte[]) p.output;
+    auto runtime = Runtime.instantiate(wasm);
+    assertThrown(runtime.call("foooo", []));
+}
