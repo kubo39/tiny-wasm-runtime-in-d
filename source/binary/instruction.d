@@ -11,3 +11,11 @@ alias Instruction = SumType!(
     LocalGet,
     I32Add
 );
+
+bool isEndInstruction(Instruction instruction)
+{
+    return instruction.match!(
+        (End _) => true,
+        _ => false
+    );
+}

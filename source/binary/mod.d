@@ -19,6 +19,7 @@ struct Module
     FuncType[] typeSection;
     uint[] functionSection;
     Function[] codeSection;
+    Export[] exportSection;
 }
 
 Module decodeModule(ref const(ubyte)[] input)
@@ -34,6 +35,8 @@ Module decodeModule(ref const(ubyte)[] input)
     FuncType[] typeSection;
     uint[] functionSection;
     Function[] codeSection;
+    Export[] exportSection;
+
     while (input.length)
     {
         auto sectionHeader = decodeSectionHeader(input);
@@ -48,6 +51,9 @@ Module decodeModule(ref const(ubyte)[] input)
         case SectionCode.Code:
             codeSection = decodeCodeSection(input);
             break;
+        case SectionCode.Export:
+            exportSection = decodeExportSection(input);
+            break;
         default:
             assert(false);
         }
@@ -58,7 +64,8 @@ Module decodeModule(ref const(ubyte)[] input)
         version_,
         typeSection,
         functionSection,
-        codeSection
+        codeSection,
+        exportSection
     );
 }
 
@@ -144,10 +151,16 @@ Function decodeFunctionBody(ref const(ubyte)[] input)
     // FIXME: 命令だけconsumeするようにしないといけない
     while (input.length)
     {
-        body.code ~= input.decodeInstruction();
+        auto instruction = input.decodeInstruction();
+        body.code ~= instruction;
+        if (instruction.isEndInstruction())
+        {
+            break;
+        }
     }
     return body;
 }
+
 
 Instruction decodeInstruction(ref const(ubyte)[] input)
 {
@@ -164,6 +177,24 @@ Instruction decodeInstruction(ref const(ubyte)[] input)
     default:
         assert(false, "invalid opcode");
     }
+}
+
+Export[] decodeExportSection(ref const(ubyte)[] input)
+{
+    const count = input.leb128Uint();
+    Export[] exports;
+    foreach (_; 0..count)
+    {
+        const nameLen = input.leb128Uint();
+        ubyte[] name;
+        iota(nameLen).each!(_ => name ~= input.read!ubyte());
+        const exportKind = input.read!ubyte();
+        enforce(exportKind == 0x0, "unsupported export kind");
+        auto idx = input.leb128Uint();
+        ExportDesc desc = Func(idx);
+        exports ~= Export(cast(string) name, desc);
+    }
+    return exports;
 }
 
 @("decodeSimplestModule")
@@ -187,7 +218,8 @@ unittest
         1,
         [FuncType([], [])],
         [0],
-        [Function([], [cast(Instruction) End()])]
+        [Function([], [cast(Instruction) End()])],
+        []
     );
     assert(actual == expected);
 }
@@ -205,7 +237,8 @@ unittest
         1,
         [FuncType([ValueType.I32, ValueType.I64], [])],
         [0],
-        [Function([], [cast(Instruction) End()])]
+        [Function([], [cast(Instruction) End()])],
+        []
     );
     assert(actual == expected);
 }
@@ -228,7 +261,8 @@ unittest
                 FunctionLocal(2, ValueType.I64)
             ],
             [cast(Instruction) End()]
-        )]
+        )],
+        []
     );
     assert(actual == expected);
 }
@@ -256,6 +290,11 @@ unittest
                 cast(Instruction) I32Add(),
                 cast(Instruction) End()
             ]
+        )]
+        ,
+        [Export(
+            "add",
+            cast(ExportDesc) Func(0)
         )]
     );
     assert(actual == expected);
