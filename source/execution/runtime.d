@@ -7,6 +7,7 @@ import binary.types;
 import execution.store;
 import execution.value;
 
+import std.exception : enforce;
 import std.range;
 import std.sumtype;
 import std.typecons;
@@ -117,8 +118,13 @@ public:
         return Runtime(store);
     }
 
-    Nullable!Value call(size_t idx, Value[] args)
+    Nullable!Value call(string name, Value[] args)
     {
+        ExportInst* p = name in this.store.moduleInst.exports;
+        enforce(p !is null, "not found export function");
+        auto idx = (*p).desc.match!(
+            (binary.types.Func func) => func.idx
+        );
         auto funcInst = this.store.funcs[idx];
         foreach (arg; args)
         {
@@ -160,7 +166,7 @@ unittest
     foreach (test; tests)
     {
         Value[] args = [cast(Value) I32(test[0]), cast(Value) I32(test[1])];
-        const Nullable!Value result = runtime.call(0, args);
+        const Nullable!Value result = runtime.call("add", args);
         result.get().match!(
             (I32 actual) => assert(actual.i == test[2]),
             _ => assert(false)

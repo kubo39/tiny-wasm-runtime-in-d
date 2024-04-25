@@ -26,9 +26,21 @@ struct Internal
 
 alias FuncInst = SumType!(Internal);
 
+struct ExportInst
+{
+    string name;
+    ExportDesc desc;
+}
+
+struct ModuleInst
+{
+    ExportInst[string] exports;
+}
+
 struct Store
 {
     FuncInst[] funcs;
+    ModuleInst moduleInst;
 
     this(Module mod)
     {
@@ -48,5 +60,16 @@ struct Store
                 InternalFuncInst(funcType, Func(locals, body.code))
             );
         }
+
+        ExportInst[string] exports;
+        foreach(exported; mod.exportSection)
+        {
+            ExportInst exportInst = ExportInst(
+                exported.name,
+                exported.desc
+            );
+            exports[exported.name] = exportInst;
+        }
+        moduleInst = ModuleInst(exports);
     }
 }
