@@ -79,9 +79,13 @@ Module decodeModule(ref const(ubyte)[] input)
     );
 }
 
-private uint leb128Uint(ref const(ubyte)[] input)
+alias leb128Uint = leb128!uint;
+alias leb128Int = leb128!int;
+
+private uint leb128(T)(ref const(ubyte)[] input)
+    if (is(T == int) || is(T == uint))
 {
-    uint val = 0;
+    T val = 0;
     uint shift = 0;
     while (true)
     {
@@ -180,6 +184,12 @@ Instruction decodeInstruction(ref const(ubyte)[] input)
     case OpCode.LocalGet:
         auto idx = input.leb128Uint();
         return cast(Instruction) LocalGet(idx);
+    case OpCode.LocalSet:
+        auto idx = input.leb128Uint();
+        return cast(Instruction) LocalSet(idx);
+    case OpCode.I32Const:
+        auto value = input.leb128Int();
+        return cast(Instruction) I32Const(value);
     case OpCode.I32Add:
         return cast(Instruction) I32Add();
     case OpCode.End:

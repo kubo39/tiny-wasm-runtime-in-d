@@ -47,10 +47,18 @@ private:
                     Value value = frame.locals[localGet.idx];
                     this.stack ~= value;
                 },
+                (LocalSet localSet) {
+                    Value value = this.stack.back;
+                    this.stack.popBack();
+                    frame.locals[localSet.idx] = value;
+                },
                 (End _) {
                     auto frame = this.callStack.back;
                     this.callStack.popBack();
                     stack_unwind(this.stack, frame.sp, frame.arity);
+                },
+                (I32Const i32const) {
+                    this.stack ~= cast(Value) I32(i32const.value);
                 },
                 (I32Add _) {
                     // pop
@@ -295,4 +303,32 @@ unittest
         return typeof(return).init;
     });
     assertThrown(runtime.call("call_add", [cast(Value) I32(1)]));
+}
+
+@("i32 const")
+unittest
+{
+    import std.process;
+    auto p = executeShell("wasm-tools parse source/fixtures/i32_const.wat");
+    const (ubyte)[] wasm = cast(ubyte[]) p.output;
+    auto runtime = Runtime.instantiate(wasm);
+    const result = runtime.call("i32_const", [cast(Value) I32(42)]);
+    result.get().match!(
+        (I32 actual) => assert(actual.i == 42),
+        _ => assert(false)
+    );
+}
+
+@("local set")
+unittest
+{
+    import std.process;
+    auto p = executeShell("wasm-tools parse source/fixtures/local_set.wat");
+    const (ubyte)[] wasm = cast(ubyte[]) p.output;
+    auto runtime = Runtime.instantiate(wasm);
+    const result = runtime.call("local_set", []);
+    result.get().match!(
+        (I32 actual) => assert(actual.i == 42),
+        _ => assert(false)
+    );
 }
