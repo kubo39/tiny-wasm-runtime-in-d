@@ -67,12 +67,17 @@ private:
                     );
                     this.stack ~= result;
                 },
-                _ => assert(false)
+                (Call call) {
+                    auto func = this.store.funcs[call.idx];
+                    func.match!(
+                        (Internal internal) => pushFrame(internal.func),
+                    );
+                }
             );
         }
     }
 
-    Nullable!Value invokeInternal(InternalFuncInst func)
+    void pushFrame(InternalFuncInst func)
     {
         const bottom = this.stack.length - func.funcType.params.length;
         Value[] locals = this.stack[bottom..$];
@@ -100,6 +105,13 @@ private:
             locals
         );
         this.callStack ~= frame;
+    }
+
+    Nullable!Value invokeInternal(InternalFuncInst func)
+    {
+        const arity = func.funcType.results.length;
+        pushFrame(func);
+
         execute();
 
         if (arity > 0)
@@ -185,4 +197,28 @@ unittest
     const (ubyte)[] wasm = cast(ubyte[]) p.output;
     auto runtime = Runtime.instantiate(wasm);
     assertThrown(runtime.call("foooo", []));
+}
+
+@("func call")
+unittest
+{
+    import std.process;
+    auto p = executeShell("wasm-tools parse source/fixtures/func_call.wat");
+    const (ubyte)[] wasm = cast(ubyte[]) p.output;
+    auto runtime = Runtime.instantiate(wasm);
+    const tests = [
+        [2, 4],
+        [10, 20],
+        [1, 2]
+    ];
+
+    foreach(test; tests)
+    {
+        Value[] args = [cast(Value) I32(test[0])];
+        const result = runtime.call("call_doubler", args);
+        result.get().match!(
+            (I32 actual) => assert(actual.i == test[1]),
+            _ => assert(false)
+        );
+    }
 }
