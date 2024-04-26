@@ -40,7 +40,7 @@ private:
 
             inst.match!(
                 (LocalGet localGet) {
-                    Value value = frame.locals[localGet.index];
+                    Value value = frame.locals[localGet.idx];
                     this.stack ~= value;
                 },
                 (End _) {
@@ -66,7 +66,8 @@ private:
                             )
                     );
                     this.stack ~= result;
-                }
+                },
+                _ => assert(false)
             );
         }
     }

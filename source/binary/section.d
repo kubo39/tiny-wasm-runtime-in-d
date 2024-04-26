@@ -5,6 +5,7 @@ import binary.types;
 
 enum SectionCode : ubyte
 {
+    Custom = 0x00,
     Type = 0x01,
     Import = 0x02,
     Function = 0x03,

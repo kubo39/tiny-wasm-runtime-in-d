@@ -42,6 +42,10 @@ Module decodeModule(ref const(ubyte)[] input)
         auto sectionHeader = decodeSectionHeader(input);
         switch (sectionHeader[0])
         {
+        case SectionCode.Custom:
+            // skip
+            input = input[sectionHeader[1] .. $];
+            break;
         case SectionCode.Type:
             typeSection = decodeTypeSection(input);
             break;
@@ -174,6 +178,9 @@ Instruction decodeInstruction(ref const(ubyte)[] input)
         return cast(Instruction) I32Add();
     case OpCode.End:
         return cast(Instruction) End();
+    case OpCode.Call:
+        auto idx = input.leb128Uint();
+        return cast(Instruction) Call(idx);
     default:
         assert(false, "invalid opcode");
     }
@@ -294,6 +301,49 @@ unittest
         ,
         [Export(
             "add",
+            cast(ExportDesc) Func(0)
+        )]
+    );
+    assert(actual == expected);
+}
+
+@("decodeFuncCall")
+unittest
+{
+    import std.process;
+    auto p = executeShell("wasm-tools parse source/fixtures/func_call.wat");
+    const (ubyte)[] wasm = cast(ubyte[]) p.output;
+    auto actual = decodeModule(wasm);
+    auto expected = Module(
+        ['\0', 'a', 's', 'm'],
+        1,
+        [FuncType(
+            [ValueType.I32],
+            [ValueType.I32]
+        )],
+        [0, 0],
+        [
+            Function(
+                [],
+                [
+                    cast(Instruction) LocalGet(0),
+                    cast(Instruction) Call(1),
+                    cast(Instruction) End()
+                ]
+            ),
+            Function(
+                [],
+                [
+                    cast(Instruction) LocalGet(0),
+                    cast(Instruction) LocalGet(0),
+                    cast(Instruction) I32Add(),
+                    cast(Instruction) End()
+                ]
+            )
+        ]
+        ,
+        [Export(
+            "call_doubler",
             cast(ExportDesc) Func(0)
         )]
     );
