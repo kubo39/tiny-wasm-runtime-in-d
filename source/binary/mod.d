@@ -249,15 +249,15 @@ unittest
     auto p = executeShell(q{echo "(module (func))" | wasm-tools parse -});
     const (ubyte)[] wasm = cast(ubyte[]) p.output;
     auto actual = decodeModule(wasm);
-    auto expected = Module(
-        ['\0', 'a', 's', 'm'],
-        1,
-        [FuncType([], [])],
-        [0],
-        [Function([], [cast(Instruction) End()])],
-        [],
-        []
-    );
+    Module expected = {
+        magic: ['\0', 'a', 's', 'm'],
+        version_: 1,
+        typeSection: [{ params: [], results: [] }],
+        functionSection: [0],
+        codeSection: [{ locals: [], code: [cast(Instruction) End()] }],
+        exportSection: [],
+        importSection: []
+    };
     assert(actual == expected);
 }
 
@@ -269,15 +269,18 @@ unittest
     const (ubyte)[] wasm = cast(ubyte[]) p.output;
     auto actual = decodeModule(wasm);
     Instruction end = End();
-    auto expected = Module(
-        ['\0', 'a', 's', 'm'],
-        1,
-        [FuncType([ValueType.I32, ValueType.I64], [])],
-        [0],
-        [Function([], [cast(Instruction) End()])],
-        [],
-        []
-    );
+    Module expected = {
+        magic: ['\0', 'a', 's', 'm'],
+        version_: 1,
+        typeSection: [{
+            params: [ValueType.I32, ValueType.I64],
+            results: []
+        }],
+        functionSection: [0],
+        codeSection: [{ locals: [], code: [cast(Instruction) End()] }],
+        exportSection: [],
+        importSection: []
+    };
     assert(actual == expected);
 }
 
@@ -288,21 +291,21 @@ unittest
     auto p = executeShell("wasm-tools parse source/fixtures/func_local.wat");
     const (ubyte)[] wasm = cast(ubyte[]) p.output;
     auto actual = decodeModule(wasm);
-    auto expected = Module(
-        ['\0', 'a', 's', 'm'],
-        1,
-        [FuncType([], [])],
-        [0],
-        [Function(
-            [
+    Module expected = {
+        magic: ['\0', 'a', 's', 'm'],
+        version_: 1,
+        typeSection: [{ params: [], results: [] }],
+        functionSection: [0],
+        codeSection: [{
+            locals: [
                 FunctionLocal(1, ValueType.I32),
                 FunctionLocal(2, ValueType.I64)
             ],
-            [cast(Instruction) End()]
-        )],
-        [],
-        []
-    );
+            code: [cast(Instruction) End()]
+        }],
+        exportSection: [],
+        importSection: []
+    };
     assert(actual == expected);
 }
 
@@ -313,30 +316,30 @@ unittest
     auto p = executeShell("wasm-tools parse source/fixtures/func_add.wat");
     const (ubyte)[] wasm = cast(ubyte[]) p.output;
     auto actual = decodeModule(wasm);
-    auto expected = Module(
-        ['\0', 'a', 's', 'm'],
-        1,
-        [FuncType(
-            [ValueType.I32, ValueType.I32],
-            [ValueType.I32]
-        )],
-        [0],
-        [Function(
-            [],
-            [
+    Module expected = {
+        magic: ['\0', 'a', 's', 'm'],
+        version_: 1,
+        typeSection: [{
+            params: [ValueType.I32, ValueType.I32],
+            results: [ValueType.I32]
+        }],
+        functionSection: [0],
+        codeSection: [{
+            locals: [],
+            code: [
                 cast(Instruction) LocalGet(0),
                 cast(Instruction) LocalGet(1),
                 cast(Instruction) I32Add(),
                 cast(Instruction) End()
             ]
-        )]
+        }]
         ,
-        [Export(
-            "add",
-            cast(ExportDesc) Func(0)
-        )],
-        []
-    );
+        exportSection: [{
+            name: "add",
+            desc: cast(ExportDesc) Func(0)
+        }],
+        importSection: []
+    };
     assert(actual == expected);
 }
 
@@ -347,40 +350,40 @@ unittest
     auto p = executeShell("wasm-tools parse source/fixtures/func_call.wat");
     const (ubyte)[] wasm = cast(ubyte[]) p.output;
     auto actual = decodeModule(wasm);
-    auto expected = Module(
-        ['\0', 'a', 's', 'm'],
-        1,
-        [FuncType(
+    Module expected = {
+        magic: ['\0', 'a', 's', 'm'],
+        version_: 1,
+        typeSection: [FuncType(
             [ValueType.I32],
             [ValueType.I32]
         )],
-        [0, 0],
-        [
-            Function(
-                [],
-                [
+        functionSection: [0, 0],
+        codeSection: [
+            {
+                locals: [],
+                code: [
                     cast(Instruction) LocalGet(0),
                     cast(Instruction) Call(1),
                     cast(Instruction) End()
                 ]
-            ),
-            Function(
-                [],
-                [
+            },
+            {
+                locals: [],
+                code: [
                     cast(Instruction) LocalGet(0),
                     cast(Instruction) LocalGet(0),
                     cast(Instruction) I32Add(),
                     cast(Instruction) End()
                 ]
-            )
+            }
         ]
         ,
-        [Export(
-            "call_doubler",
-            cast(ExportDesc) Func(0)
-        )],
-        []
-    );
+        exportSection: [{
+            name: "call_doubler",
+            desc: cast(ExportDesc) Func(0)
+        }],
+        importSection: []
+    };
     assert(actual == expected);
 }
 
@@ -391,34 +394,34 @@ unittest
     auto p = executeShell("wasm-tools parse source/fixtures/import.wat");
     const (ubyte)[] wasm = cast(ubyte[]) p.output;
     auto actual = decodeModule(wasm);
-    auto expected = Module(
-        ['\0', 'a', 's', 'm'],
-        1,
-        [FuncType(
-            [ValueType.I32],
-            [ValueType.I32]
-        )],
-        [0],
-        [
-            Function(
-                [],
-                [
+    Module expected = {
+        magic: ['\0', 'a', 's', 'm'],
+        version_: 1,
+        typeSection: [{
+            params: [ValueType.I32],
+            results: [ValueType.I32]
+        }],
+        functionSection: [0],
+        codeSection: [
+            {
+                locals: [],
+                code: [
                     cast(Instruction) LocalGet(0),
                     cast(Instruction) Call(0),
                     cast(Instruction) End()
                 ]
-            )
+            }
         ]
         ,
-        [Export(
-            "call_add",
-            cast(ExportDesc) Func(1)
-        )],
-        [Import(
-            "env",
-            "add",
-            cast(ImportDesc) Func(0)
-        )]
-    );
+        exportSection: [{
+            name: "call_add",
+            desc: cast(ExportDesc) Func(1)
+        }],
+        importSection: [{
+            moduleName: "env",
+            field: "add",
+            desc: cast(ImportDesc) Func(0)
+        }]
+    };
     assert(actual == expected);
 }
