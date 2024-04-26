@@ -19,12 +19,17 @@ struct InternalFuncInst
     Func code;
 }
 
-struct Internal
+struct ExternalFuncInst
 {
-    InternalFuncInst func;
+    string moduleName;
+    string func;
+    FuncType funcType;
 }
 
-alias FuncInst = SumType!(Internal);
+alias FuncInst = SumType!(
+    InternalFuncInst,
+    ExternalFuncInst
+);
 
 struct ExportInst
 {
@@ -44,6 +49,21 @@ struct Store
 
     this(Module mod)
     {
+        foreach (imported; mod.importSection)
+        {
+            auto moduleName = imported.moduleName;
+            auto field = imported.field;
+            auto funcType = imported.desc.match!(
+                (binary.types.Func func) => mod.typeSection[func.idx],
+            );
+            FuncInst func = ExternalFuncInst(
+                moduleName,
+                field,
+                funcType
+            );
+            funcs ~= func;
+        }
+
         auto funcTypeIdxs = mod.functionSection;
         foreach (body, idx; mod.codeSection.zip(funcTypeIdxs))
         {
@@ -56,9 +76,7 @@ struct Store
                     locals ~= local.valueType;
                 }
             }
-            funcs ~= cast(FuncInst) Internal(
-                InternalFuncInst(funcType, Func(locals, body.code))
-            );
+            funcs ~= cast(FuncInst) InternalFuncInst(funcType, Func(locals, body.code));
         }
 
         ExportInst[string] exports;

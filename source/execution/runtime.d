@@ -12,6 +12,9 @@ import std.range;
 import std.sumtype;
 import std.typecons;
 
+alias ImportFunc = Nullable!Value delegate(Store, Value[]);
+alias Import = ImportFunc[string][string];
+
 struct Frame
 {
     size_t pc;
@@ -29,6 +32,7 @@ private:
     Store store;
     Value[] stack;
     Frame*[] callStack;
+    Import import_;
 
     void execute()
     {
@@ -70,7 +74,14 @@ private:
                 (Call call) {
                     auto func = this.store.funcs[call.idx];
                     func.match!(
-                        (Internal internal) => pushFrame(internal.func),
+                        (InternalFuncInst func) => pushFrame(func),
+                        (ExternalFuncInst func) {
+                            Nullable!Value value = invokeExternal(func);
+                            if (!value.isNull)
+                            {
+                                this.stack ~= value.get;
+                            }
+                        },
                     );
                 }
             );
@@ -123,12 +134,27 @@ private:
         return Nullable!Value.init;
     }
 
+    Nullable!Value invokeExternal(ExternalFuncInst func)
+    {
+        const bottom = this.stack.length - func.funcType.params.length;
+        Value[] args = this.stack[bottom..$];
+        this.stack = this.stack[0..bottom];
+        auto mod = this.import_[func.moduleName];
+        auto importFunc = mod[func.func];
+        return importFunc(this.store, args);
+    }
+
 public:
     static Runtime instantiate(ref const(ubyte)[] wasm)
     {
         auto mod = decodeModule(wasm);
         auto store = Store(mod);
         return Runtime(store);
+    }
+
+    void addImport(string moduleName, string funcName, ImportFunc func)
+    {
+        this.import_[moduleName][funcName] = func;
     }
 
     Nullable!Value call(string name, Value[] args)
@@ -144,7 +170,8 @@ public:
             this.stack ~= arg;
         }
         return funcInst.match!(
-            (Internal internal) => invokeInternal(internal.func),
+            (InternalFuncInst func) => invokeInternal(func),
+            (ExternalFuncInst func) => invokeExternal(func),
         );
     }
 }
@@ -216,6 +243,37 @@ unittest
     {
         Value[] args = [cast(Value) I32(test[0])];
         const result = runtime.call("call_doubler", args);
+        result.get().match!(
+            (I32 actual) => assert(actual.i == test[1]),
+            _ => assert(false)
+        );
+    }
+}
+
+@("call imported func")
+unittest
+{
+    import std.process;
+    auto p = executeShell("wasm-tools parse source/fixtures/import.wat");
+    const (ubyte)[] wasm = cast(ubyte[]) p.output;
+    auto runtime = Runtime.instantiate(wasm);
+    runtime.addImport("env", "add", delegate Nullable!Value(_, args) {
+        const arg = args[0];
+        return arg.match!(
+            (I32 value) => nullable(cast(Value) (value + value)),
+            _ => assert(false),
+        );
+    });
+    const tests = [
+        [2, 4],
+        [10, 20],
+        [1, 2]
+    ];
+
+    foreach(test; tests)
+    {
+        Value[] args = [cast(Value) I32(test[0])];
+        const result = runtime.call("call_add", args);
         result.get().match!(
             (I32 actual) => assert(actual.i == test[1]),
             _ => assert(false)
