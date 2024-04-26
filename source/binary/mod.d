@@ -20,6 +20,7 @@ struct Module
     uint[] functionSection;
     Function[] codeSection;
     Export[] exportSection;
+    Import[] importSection;
 }
 
 Module decodeModule(ref const(ubyte)[] input)
@@ -36,6 +37,7 @@ Module decodeModule(ref const(ubyte)[] input)
     uint[] functionSection;
     Function[] codeSection;
     Export[] exportSection;
+    Import[] importSection;
 
     while (input.length)
     {
@@ -58,6 +60,9 @@ Module decodeModule(ref const(ubyte)[] input)
         case SectionCode.Export:
             exportSection = decodeExportSection(input);
             break;
+        case SectionCode.Import:
+            importSection = decodeImportSection(input);
+            break;
         default:
             assert(false);
         }
@@ -69,7 +74,8 @@ Module decodeModule(ref const(ubyte)[] input)
         typeSection,
         functionSection,
         codeSection,
-        exportSection
+        exportSection,
+        importSection
     );
 }
 
@@ -192,16 +198,39 @@ Export[] decodeExportSection(ref const(ubyte)[] input)
     Export[] exports;
     foreach (_; 0..count)
     {
-        const nameLen = input.leb128Uint();
-        ubyte[] name;
-        iota(nameLen).each!(_ => name ~= input.read!ubyte());
+        string name = input.decodeName();
         const exportKind = input.read!ubyte();
         enforce(exportKind == 0x0, "unsupported export kind");
         auto idx = input.leb128Uint();
         ExportDesc desc = Func(idx);
-        exports ~= Export(cast(string) name, desc);
+        exports ~= Export(name, desc);
     }
     return exports;
+}
+
+Import[] decodeImportSection(ref const(ubyte)[] input)
+{
+    const count = input.leb128Uint();
+    Import[] imports;
+    foreach (_; 0..count)
+    {
+        auto moduleName = input.decodeName();
+        auto field = input.decodeName();
+        auto importKind = input.read!ubyte();
+        enforce(importKind == 0x00, "unsupported import kind");
+        auto idx = input.leb128Uint();
+        ImportDesc desc = Func(idx);
+        imports ~= Import(moduleName, field, desc);
+    }
+    return imports;
+}
+
+private string decodeName(ref const(ubyte)[] input)
+{
+    const nameLen = input.leb128Uint();
+    char[] name;
+    iota(nameLen).each!(_ => name ~= input.read!ubyte());
+    return cast (string) name;
 }
 
 @("decodeSimplestModule")
@@ -226,6 +255,7 @@ unittest
         [FuncType([], [])],
         [0],
         [Function([], [cast(Instruction) End()])],
+        [],
         []
     );
     assert(actual == expected);
@@ -245,6 +275,7 @@ unittest
         [FuncType([ValueType.I32, ValueType.I64], [])],
         [0],
         [Function([], [cast(Instruction) End()])],
+        [],
         []
     );
     assert(actual == expected);
@@ -269,6 +300,7 @@ unittest
             ],
             [cast(Instruction) End()]
         )],
+        [],
         []
     );
     assert(actual == expected);
@@ -302,7 +334,8 @@ unittest
         [Export(
             "add",
             cast(ExportDesc) Func(0)
-        )]
+        )],
+        []
     );
     assert(actual == expected);
 }
@@ -345,6 +378,46 @@ unittest
         [Export(
             "call_doubler",
             cast(ExportDesc) Func(0)
+        )],
+        []
+    );
+    assert(actual == expected);
+}
+
+@("decodeImport")
+unittest
+{
+    import std.process;
+    auto p = executeShell("wasm-tools parse source/fixtures/import.wat");
+    const (ubyte)[] wasm = cast(ubyte[]) p.output;
+    auto actual = decodeModule(wasm);
+    auto expected = Module(
+        ['\0', 'a', 's', 'm'],
+        1,
+        [FuncType(
+            [ValueType.I32],
+            [ValueType.I32]
+        )],
+        [0],
+        [
+            Function(
+                [],
+                [
+                    cast(Instruction) LocalGet(0),
+                    cast(Instruction) Call(0),
+                    cast(Instruction) End()
+                ]
+            )
+        ]
+        ,
+        [Export(
+            "call_add",
+            cast(ExportDesc) Func(1)
+        )],
+        [Import(
+            "env",
+            "add",
+            cast(ImportDesc) Func(0)
         )]
     );
     assert(actual == expected);

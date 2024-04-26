@@ -29,3 +29,12 @@ struct Export
     string name;
     ExportDesc desc;
 }
+
+alias ImportDesc = SumType!(Func);
+
+struct Import
+{
+    string moduleName;
+    string field;
+    ImportDesc desc;
+}
