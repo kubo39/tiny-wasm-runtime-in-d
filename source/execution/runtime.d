@@ -12,7 +12,7 @@ import std.range;
 import std.sumtype;
 import std.typecons;
 
-alias ImportFunc = Nullable!Value delegate(Store, Value[]);
+alias ImportFunc = Nullable!Value delegate(ref Store, Value[]);
 alias Import = ImportFunc[string][string];
 
 struct Frame
@@ -139,9 +139,11 @@ private:
         const bottom = this.stack.length - func.funcType.params.length;
         Value[] args = this.stack[bottom..$];
         this.stack = this.stack[0..bottom];
-        auto mod = this.import_[func.moduleName];
-        auto importFunc = mod[func.func];
-        return importFunc(this.store, args);
+        const mod = func.moduleName in this.import_;
+        enforce(mod !is null, "not found module");
+        const importFunc = func.func in *mod;
+        enforce(importFunc !is null, "not found function");
+        return (*importFunc)(this.store, args);
     }
 
 public:
@@ -279,4 +281,18 @@ unittest
             _ => assert(false)
         );
     }
+}
+
+@("not found imported func")
+unittest
+{
+    import std.exception;
+    import std.process;
+    auto p = executeShell("wasm-tools parse source/fixtures/import.wat");
+    const (ubyte)[] wasm = cast(ubyte[]) p.output;
+    auto runtime = Runtime.instantiate(wasm);
+    runtime.addImport("env", "fooooo", delegate Nullable!Value(_, _args) {
+        return typeof(return).init;
+    });
+    assertThrown(runtime.call("call_add", [cast(Value) I32(1)]));
 }
