@@ -49,20 +49,17 @@ struct Store
 
     this(Module mod)
     {
-        foreach (imported; mod.importSection)
-        {
-            auto moduleName = imported.moduleName;
-            auto field = imported.field;
-            auto funcType = imported.desc.match!(
-                (binary.types.Func func) => mod.typeSection[func.idx],
+        import std.algorithm : map;
+        import std.array : array;
+        funcs = mod.importSection.map!((imported) {
+            return cast(FuncInst) ExternalFuncInst(
+                imported.moduleName,
+                imported.field,
+                imported.desc.match!(
+                   (binary.types.Func func) => mod.typeSection[func.idx]
+                )
             );
-            FuncInst func = ExternalFuncInst(
-                moduleName,
-                field,
-                funcType
-            );
-            funcs ~= func;
-        }
+        }).array;
 
         auto funcTypeIdxs = mod.functionSection;
         foreach (body, idx; mod.codeSection.zip(funcTypeIdxs))
