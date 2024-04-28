@@ -7,6 +7,8 @@ import binary.types;
 import std.range : zip;
 import std.sumtype;
 
+enum uint PAGESIZE = 65536;
+
 struct Func
 {
     ValueType[] locals;
@@ -42,10 +44,17 @@ struct ModuleInst
     ExportInst[string] exports;
 }
 
+struct MemoryInst
+{
+    ubyte[] data;
+    uint max;
+}
+
 struct Store
 {
     FuncInst[] funcs;
     ModuleInst moduleInst;
+    MemoryInst[] memories;
 
     this(Module mod)
     {
@@ -86,5 +95,14 @@ struct Store
             exports[exported.name] = exportInst;
         }
         moduleInst = ModuleInst(exports);
+
+        foreach (memory; mod.memorySection)
+        {
+            auto min = memory.limits.min * PAGESIZE;
+            memories ~= MemoryInst(
+                data: new ubyte[min],
+                max: memory.limits.max
+            );
+        }
     }
 }

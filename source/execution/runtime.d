@@ -7,9 +7,11 @@ import binary.types;
 import execution.store;
 import execution.value;
 
+import std.bitmanip : write;
 import std.exception : enforce;
 import std.range;
 import std.sumtype;
+import std.system : Endian;
 import std.typecons;
 
 alias ImportFunc = Nullable!Value delegate(ref Store, Value[]);
@@ -56,6 +58,24 @@ private:
                     auto frame = this.callStack.back;
                     this.callStack.popBack();
                     stack_unwind(this.stack, frame.sp, frame.arity);
+                },
+                (I32Store i32store) {
+                    Value value_ = this.stack.back;
+                    this.stack.popBack();
+                    Value valueAddr = this.stack.back;
+                    this.stack.popBack();
+                    const addr = cast(size_t) valueAddr.match!(
+                        (I32 value) => value.i,
+                        _ => assert(false)
+                    );
+                    const offset = cast(size_t) i32store.offset;
+                    const at = addr + offset;
+                    auto memory = this.store.memories[0];
+                    int value = value_.match!(
+                        (I32 i32) => i32.i,
+                        _ => assert(false)
+                    );
+                    memory.data.write!(int, Endian.littleEndian)(value, at);
                 },
                 (I32Const i32const) {
                     this.stack ~= cast(Value) I32(i32const.value);
@@ -331,4 +351,16 @@ unittest
         (I32 actual) => assert(actual.i == 42),
         _ => assert(false)
     );
+}
+
+@("i32 store")
+unittest
+{
+    import std.process;
+    auto p = executeShell("wasm-tools parse source/fixtures/i32_store.wat");
+    const (ubyte)[] wasm = cast(ubyte[]) p.output;
+    auto runtime = Runtime.instantiate(wasm);
+    runtime.call("i32_store", []);
+    auto memory = runtime.store.memories[0].data;
+    assert(memory[0] == 42);
 }

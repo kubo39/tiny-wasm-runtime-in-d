@@ -16,6 +16,7 @@ struct Module
 {
     ubyte[4] magic = ['\0', 'a', 's', 'm'];
     uint version_ = 1;
+    Memory[] memorySection;
     FuncType[] typeSection;
     uint[] functionSection;
     Function[] codeSection;
@@ -33,6 +34,7 @@ Module decodeModule(ref const(ubyte)[] input)
     auto version_ = input.read!(uint, Endian.littleEndian)();
     enforce(version_ == 1);
 
+    Memory[] memorySection;
     FuncType[] typeSection;
     uint[] functionSection;
     Function[] codeSection;
@@ -47,6 +49,10 @@ Module decodeModule(ref const(ubyte)[] input)
         case SectionCode.Custom:
             // skip
             input = input[sectionHeader[1] .. $];
+            break;
+        case SectionCode.Memory:
+            auto memory = decodeMemorySection(input);
+            memorySection = [memory];
             break;
         case SectionCode.Type:
             typeSection = decodeTypeSection(input);
@@ -71,6 +77,7 @@ Module decodeModule(ref const(ubyte)[] input)
     return Module(
         ['\0', 'a', 's', 'm'],
         version_,
+        memorySection,
         typeSection,
         functionSection,
         codeSection,
@@ -102,6 +109,21 @@ Tuple!(SectionCode, uint) decodeSectionHeader(ref const(ubyte)[] input)
     auto code = cast(SectionCode) input.read!ubyte();
     uint size = input.leb128Uint();
     return tuple(code, size);
+}
+
+Memory decodeMemorySection(ref const(ubyte)[] input)
+{
+    input.leb128Uint();
+    auto limits = decodeLimits(input);
+    return Memory(limits: limits);
+}
+
+Limits decodeLimits(ref const(ubyte)[] input)
+{
+    const flags = input.leb128Uint();
+    auto min = input.leb128Uint();
+    auto max = flags == 0 ? uint.max : input.leb128Uint();
+    return Limits(min: min, max: max);
 }
 
 ValueType decodeValueSection(ref const(ubyte)[] input)
@@ -187,6 +209,10 @@ Instruction decodeInstruction(ref const(ubyte)[] input)
     case OpCode.LocalSet:
         auto idx = input.leb128Uint();
         return cast(Instruction) LocalSet(idx);
+    case OpCode.I32Store:
+        auto align_ = input.leb128Uint();
+        auto offset = input.leb128Uint();
+        return cast(Instruction) I32Store(align_, offset);
     case OpCode.I32Const:
         auto value = input.leb128Int();
         return cast(Instruction) I32Const(value);
@@ -434,4 +460,58 @@ unittest
         }]
     };
     assert(actual == expected);
+}
+
+@("decode i32.store")
+unittest
+{
+    import std.process;
+    auto p = executeShell(q{echo "(module (func (i32.store offset=4 (i32.const 4))))" | wasm-tools parse -});
+    const (ubyte)[] wasm = cast(ubyte[]) p.output;
+    auto actual = decodeModule(wasm);
+    Module expected = {
+        magic: ['\0', 'a', 's', 'm'],
+        version_: 1,
+        typeSection: [{ params: [], results: [] }],
+        functionSection: [0],
+        codeSection: [
+            {
+                locals: [],
+                code: [
+                    cast(Instruction) I32Const(4),
+                    cast(Instruction) I32Store(
+                        align_: 2,
+                        offset: 4
+                    ),
+                    cast(Instruction) End()
+                ]
+            }
+        ]
+        ,
+        exportSection: [],
+        importSection: []
+    };
+    assert(actual == expected);
+}
+
+@("decode memory")
+unittest
+{
+    import std.format;
+    import std.process;
+    import std.typecons;
+    const tests = [
+        tuple("(module (memory 1))", Limits(min: 1, max: uint.max)),
+        tuple("(module (memory 1 2))", Limits(min: 1, max: 2))
+    ];
+    foreach (test; tests)
+    {
+        auto p = executeShell(q{echo "%s" | wasm-tools parse -}.format(test[0]));
+        const (ubyte)[] wasm = cast(ubyte[]) p.output;
+        auto actual = decodeModule(wasm);
+        Module expected = {
+            memorySection: [Memory(limits: test[1])]
+        };
+        assert(actual == expected);
+    }
 }

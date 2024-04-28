@@ -38,3 +38,14 @@ struct Import
     string field;
     ImportDesc desc;
 }
+
+struct Limits
+{
+    uint min;
+    uint max;
+}
+
+struct Memory
+{
+    Limits limits;
+}
