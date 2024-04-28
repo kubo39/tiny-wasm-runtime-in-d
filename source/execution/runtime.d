@@ -6,10 +6,12 @@ import binary.types;
 
 import execution.store;
 import execution.value;
+import execution.wasi : WasiSnapshotPreview1;
 
 import std.bitmanip : write;
 import std.exception : enforce;
 import std.range;
+import std.stdio;
 import std.sumtype;
 import std.system : Endian;
 import std.typecons;
@@ -35,6 +37,7 @@ private:
     Value[] stack;
     Frame*[] callStack;
     Import import_;
+    Nullable!WasiSnapshotPreview1 wasi;
 
     void execute()
     {
@@ -167,6 +170,13 @@ private:
         const bottom = this.stack.length - func.funcType.params.length;
         Value[] args = this.stack[bottom..$];
         this.stack = this.stack[0..bottom];
+        if (func.moduleName == "wasi_snapshot_preview1")
+        {
+            if (!this.wasi.isNull)
+            {
+                return this.wasi.get.invoke(this.store, func.func, args);
+            }
+        }
         const mod = func.moduleName in this.import_;
         enforce(mod !is null, "not found module");
         const importFunc = func.func in *mod;
@@ -175,11 +185,21 @@ private:
     }
 
 public:
-    static Runtime instantiate(ref const(ubyte)[] wasm)
+    static Runtime instantiate(const(ubyte)[] wasm)
     {
         auto mod = decodeModule(wasm);
         auto store = Store(mod);
-        return Runtime(store);
+        return Runtime(store: store);
+        }
+
+    static Runtime instantiate(const(ubyte)[] wasm, ref WasiSnapshotPreview1 wasi)
+    {
+        auto mod = decodeModule(wasm);
+        auto store = Store(mod);
+        return Runtime(
+            store: store,
+            wasi: nullable(wasi)
+        );
     }
 
     void addImport(string moduleName, string funcName, ImportFunc func)

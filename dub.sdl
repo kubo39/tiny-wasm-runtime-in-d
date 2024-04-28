@@ -1,3 +1,4 @@
 name "tiny-wasm-runtime"
 authors "Hiroki Noda"
 copyright "Copyright © 2024, Hiroki Noda"
+dflags `-J./source/fixtures`
