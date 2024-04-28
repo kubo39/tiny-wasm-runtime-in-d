@@ -558,13 +558,13 @@ unittest
     import std.typecons;
     auto tests = [
         tuple(
-            "source/fixtures/decode_data1.wat",
+            "source/fixtures/data.wat",
             [
                 Data(memoryIndex: 0, offset: 0, init: cast(ubyte[]) "hello")
             ]
         ),
         tuple(
-            "source/fixtures/decode_data2.wat",
+            "source/fixtures/memory.wat",
             [
                 Data(memoryIndex: 0, offset: 0, init: cast(ubyte[]) "hello"),
                 Data(memoryIndex: 0, offset: 5, init: cast(ubyte[]) "world")

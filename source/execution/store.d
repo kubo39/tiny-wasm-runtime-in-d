@@ -4,6 +4,8 @@ import binary.instruction;
 import binary.mod;
 import binary.types;
 
+import std.bitmanip : write;
+import std.exception : enforce;
 import std.range : zip;
 import std.sumtype;
 
@@ -104,5 +106,31 @@ struct Store
                 max: memory.limits.max
             );
         }
+
+        foreach (data; mod.dataSection)
+        {
+            auto memory = memories[data.memoryIndex];
+            size_t offset = data.offset;
+            auto init = data.init;
+            enforce(
+                offset + init.length <= memory.data.length,
+                "data is too large to fit in memory"
+            );
+            memory.data[offset..(offset+init.length)] = init;
+        }
     }
+}
+
+@("init momory")
+unittest
+{
+    import std.process;
+    auto p = executeShell("wasm-tools parse source/fixtures/memory.wat");
+    const (ubyte)[] wasm = cast(ubyte[]) p.output;
+    auto mod = decodeModule(wasm);
+    auto store = Store(mod);
+    assert(store.memories.length == 1);
+    assert(store.memories[0].data.length == 65536);
+    assert(store.memories[0].data[0..5] == "hello");
+    assert(store.memories[0].data[5..10] == "world");
 }
