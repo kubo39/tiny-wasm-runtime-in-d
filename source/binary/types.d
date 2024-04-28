@@ -49,3 +49,10 @@ struct Memory
 {
     Limits limits;
 }
+
+struct Data
+{
+    uint memoryIndex;
+    uint offset;
+    ubyte[] init;
+}

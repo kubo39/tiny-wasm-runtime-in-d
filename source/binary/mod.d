@@ -17,6 +17,7 @@ struct Module
     ubyte[4] magic = ['\0', 'a', 's', 'm'];
     uint version_ = 1;
     Memory[] memorySection;
+    Data[] dataSection;
     FuncType[] typeSection;
     uint[] functionSection;
     Function[] codeSection;
@@ -35,6 +36,7 @@ Module decodeModule(ref const(ubyte)[] input)
     enforce(version_ == 1);
 
     Memory[] memorySection;
+    Data[] dataSection;
     FuncType[] typeSection;
     uint[] functionSection;
     Function[] codeSection;
@@ -53,6 +55,9 @@ Module decodeModule(ref const(ubyte)[] input)
         case SectionCode.Memory:
             auto memory = decodeMemorySection(input);
             memorySection = [memory];
+            break;
+        case SectionCode.Data:
+            dataSection = decodeDataSection(input);
             break;
         case SectionCode.Type:
             typeSection = decodeTypeSection(input);
@@ -78,6 +83,7 @@ Module decodeModule(ref const(ubyte)[] input)
         ['\0', 'a', 's', 'm'],
         version_,
         memorySection,
+        dataSection,
         typeSection,
         functionSection,
         codeSection,
@@ -124,6 +130,34 @@ Limits decodeLimits(ref const(ubyte)[] input)
     auto min = input.leb128Uint();
     auto max = flags == 0 ? uint.max : input.leb128Uint();
     return Limits(min: min, max: max);
+}
+
+uint decodeExpr(ref const(ubyte)[] input)
+{
+    input.leb128Uint(); // i32.const
+    auto offset = input.leb128Uint();
+    input.leb128Uint(); // end
+    return offset;
+}
+
+Data[] decodeDataSection(ref const(ubyte)[] input)
+{
+    const count = input.leb128Uint();
+    Data[] data;
+    foreach (_; 0..count)
+    {
+        auto memoryIndex = input.leb128Uint();
+        auto offset = input.decodeExpr();
+        auto size = input.leb128Uint();
+        ubyte[] init;
+        iota(size).each!(_ => init ~= input.read!ubyte());
+        data ~= Data(
+            memoryIndex: memoryIndex,
+            offset: offset,
+            init: init
+        );
+    }
+    return data;
 }
 
 ValueType decodeValueSection(ref const(ubyte)[] input)
@@ -511,6 +545,41 @@ unittest
         auto actual = decodeModule(wasm);
         Module expected = {
             memorySection: [Memory(limits: test[1])]
+        };
+        assert(actual == expected);
+    }
+}
+
+@("decode data")
+unittest
+{
+    import std.format;
+    import std.process;
+    import std.typecons;
+    auto tests = [
+        tuple(
+            "source/fixtures/decode_data1.wat",
+            [
+                Data(memoryIndex: 0, offset: 0, init: cast(ubyte[]) "hello")
+            ]
+        ),
+        tuple(
+            "source/fixtures/decode_data2.wat",
+            [
+                Data(memoryIndex: 0, offset: 0, init: cast(ubyte[]) "hello"),
+                Data(memoryIndex: 0, offset: 5, init: cast(ubyte[]) "world")
+            ]
+
+        )
+    ];
+    foreach (test; tests)
+    {
+        auto p = executeShell("wasm-tools parse %s".format(test[0]));
+        const (ubyte)[] wasm = cast(ubyte[]) p.output;
+        auto actual = decodeModule(wasm);
+        Module expected = {
+            memorySection: [Memory(limits: Limits(min: 1, max: uint.max))],
+            dataSection: test[1]
         };
         assert(actual == expected);
     }
