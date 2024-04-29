@@ -14,7 +14,7 @@ import std.range;
 import std.stdio;
 import std.sumtype;
 import std.system : Endian;
-import std.typecons;
+import std.typecons : Nullable, nullable;
 
 alias ImportFunc = Nullable!Value delegate(ref Store, Value[]);
 alias Import = ImportFunc[string][string];
@@ -81,7 +81,7 @@ private:
                     memory.data.write!(int, Endian.littleEndian)(value, at);
                 },
                 (I32Const i32const) {
-                    this.stack ~= cast(Value) I32(i32const.value);
+                    this.stack ~= Value(I32(i32const.value));
                 },
                 (I32Add _) {
                     // pop
@@ -92,12 +92,12 @@ private:
 
                     Value result = left.match!(
                         (I32 lhs) => right.match!(
-                                (I32 rhs) => cast(Value) (lhs + rhs),
+                                (I32 rhs) => Value((lhs + rhs)),
                                 (I64 _) => assert(false, "type mismatch")
                             ),
                         (I64 lhs) => right.match!(
                                 (I32 _) => assert(false, "type mismatch"),
-                                (I64 rhs) => cast(Value) (lhs + rhs)
+                                (I64 rhs) => Value((lhs + rhs))
                             )
                     );
                     this.stack ~= result;
@@ -130,21 +130,21 @@ private:
             final switch (local)
             {
             case ValueType.I32:
-                locals ~= cast(Value) I32(0);
+                locals ~= Value(I32(0));
                 break;
             case ValueType.I64:
-                locals ~= cast(Value) I64(0);
+                locals ~= Value(I64(0));
                 break;
             }
         }
 
         const arity = func.funcType.results.length;
         auto frame = new Frame(
-            -1,
-            this.stack.length,
-            func.code.body,
-            arity,
-            locals
+            pc: -1,
+            sp: this.stack.length,
+            insts: func.code.body,
+            arity: arity,
+            locals: locals
         );
         this.callStack ~= frame;
     }
@@ -190,7 +190,7 @@ public:
         auto mod = decodeModule(wasm);
         auto store = Store(mod);
         return Runtime(store: store);
-        }
+    }
 
     static Runtime instantiate(const(ubyte)[] wasm, ref WasiSnapshotPreview1 wasi)
     {
@@ -255,7 +255,7 @@ unittest
     ];
     foreach (test; tests)
     {
-        Value[] args = [cast(Value) I32(test[0]), cast(Value) I32(test[1])];
+        Value[] args = [Value(I32(test[0])), Value(I32(test[1]))];
         const Nullable!Value result = runtime.call("add", args);
         result.get().match!(
             (I32 actual) => assert(actual.i == test[2]),
@@ -291,7 +291,7 @@ unittest
 
     foreach(test; tests)
     {
-        Value[] args = [cast(Value) I32(test[0])];
+        Value[] args = [Value(I32(test[0]))];
         const result = runtime.call("call_doubler", args);
         result.get().match!(
             (I32 actual) => assert(actual.i == test[1]),
@@ -310,7 +310,7 @@ unittest
     runtime.addImport("env", "add", delegate Nullable!Value(_, args) {
         const arg = args[0];
         return arg.match!(
-            (I32 value) => nullable(cast(Value) (value + value)),
+            (I32 value) => nullable(Value((value + value))),
             _ => assert(false),
         );
     });
@@ -322,7 +322,7 @@ unittest
 
     foreach(test; tests)
     {
-        Value[] args = [cast(Value) I32(test[0])];
+        Value[] args = [Value(I32(test[0]))];
         const result = runtime.call("call_add", args);
         result.get().match!(
             (I32 actual) => assert(actual.i == test[1]),
@@ -342,7 +342,7 @@ unittest
     runtime.addImport("env", "fooooo", delegate Nullable!Value(_, _args) {
         return typeof(return).init;
     });
-    assertThrown(runtime.call("call_add", [cast(Value) I32(1)]));
+    assertThrown(runtime.call("call_add", [Value(I32(1))]));
 }
 
 @("i32 const")
@@ -352,7 +352,7 @@ unittest
     auto p = executeShell("wasm-tools parse source/fixtures/i32_const.wat");
     const (ubyte)[] wasm = cast(ubyte[]) p.output;
     auto runtime = Runtime.instantiate(wasm);
-    const result = runtime.call("i32_const", [cast(Value) I32(42)]);
+    const result = runtime.call("i32_const", [Value(I32(42))]);
     result.get().match!(
         (I32 actual) => assert(actual.i == 42),
         _ => assert(false)

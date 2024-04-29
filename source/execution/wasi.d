@@ -62,7 +62,7 @@ struct WasiSnapshotPreview1
         }
         memory.data.write!(int, Endian.littleEndian)(nwritten, rp);
 
-        return nullable(cast(Value) I32(0));
+        return nullable(Value(I32(0)));
     }
 }
 

@@ -1,6 +1,6 @@
 module binary.opcode;
 
-enum OpCode
+enum OpCode : ubyte
 {
     End = 0x0B,
     LocalGet = 0x20,

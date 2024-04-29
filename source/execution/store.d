@@ -63,13 +63,13 @@ struct Store
         import std.algorithm : map;
         import std.array : array;
         funcs = mod.importSection.map!((imported) {
-            return cast(FuncInst) ExternalFuncInst(
+            return FuncInst(ExternalFuncInst(
                 imported.moduleName,
                 imported.field,
                 imported.desc.match!(
                    (binary.types.Func func) => mod.typeSection[func.idx]
                 )
-            );
+            ));
         }).array;
 
         auto funcTypeIdxs = mod.functionSection;
@@ -84,7 +84,10 @@ struct Store
                     locals ~= local.valueType;
                 }
             }
-            funcs ~= cast(FuncInst) InternalFuncInst(funcType, Func(locals, body.code));
+            funcs ~= FuncInst(InternalFuncInst(
+                funcType: funcType,
+                code: Func(locals: locals, body: body.code)
+            ));
         }
 
         ExportInst[string] exports;
