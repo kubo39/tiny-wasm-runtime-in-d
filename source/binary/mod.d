@@ -12,19 +12,30 @@ import std.range : iota;
 import std.system : Endian;
 import std.typecons : Tuple, tuple;
 
+///
 struct Module
 {
+    ///
     immutable ubyte[4] magic = ['\0', 'a', 's', 'm'];
+    ///
     immutable uint version_ = 1;
+    ///
     Memory[] memorySection;
+    ///
     Data[] dataSection;
+    ///
     FuncType[] typeSection;
+    ///
     uint[] functionSection;
+    ///
     Function[] codeSection;
+    ///
     Export[] exportSection;
+    ///
     Import[] importSection;
 }
 
+///
 Module decodeModule(ref const(ubyte)[] input)
 {
     enforce(input.length >= 8);
@@ -53,7 +64,7 @@ Module decodeModule(ref const(ubyte)[] input)
             input = input[sectionHeader[1] .. $];
             break;
         case SectionCode.Memory:
-            auto memory = decodeMemorySection(input);
+            const memory = decodeMemorySection(input);
             memorySection = [memory];
             break;
         case SectionCode.Data:
@@ -90,14 +101,16 @@ Module decodeModule(ref const(ubyte)[] input)
     );
 }
 
-private uint leb128(T)(ref const(ubyte)[] input)
+private:
+
+uint leb128(T)(ref const(ubyte)[] input)
     if (is(T == int) || is(T == uint))
 {
     T val = 0;
     uint shift = 0;
     while (true)
     {
-        ubyte b = input.read!ubyte();
+        const b = input.read!ubyte();
         val |= (b & 0x7F) << shift;
         if ((b & 0x80) == 0) break;
         shift += 7;
@@ -105,13 +118,15 @@ private uint leb128(T)(ref const(ubyte)[] input)
     return val;
 }
 
+///
 Tuple!(SectionCode, uint) decodeSectionHeader(ref const(ubyte)[] input)
 {
     auto code = cast(SectionCode) input.read!ubyte();
-    uint size = input.leb128!uint();
+    auto size = input.leb128!uint();
     return tuple(code, size);
 }
 
+///
 Memory decodeMemorySection(ref const(ubyte)[] input)
 {
     input.leb128!uint();
@@ -119,6 +134,7 @@ Memory decodeMemorySection(ref const(ubyte)[] input)
     return Memory(limits: limits);
 }
 
+///
 Limits decodeLimits(ref const(ubyte)[] input)
 {
     const flags = input.leb128!uint();
@@ -127,6 +143,7 @@ Limits decodeLimits(ref const(ubyte)[] input)
     return Limits(min: min, max: max);
 }
 
+///
 uint decodeExpr(ref const(ubyte)[] input)
 {
     input.leb128!uint(); // i32.const
@@ -135,6 +152,7 @@ uint decodeExpr(ref const(ubyte)[] input)
     return offset;
 }
 
+///
 Data[] decodeDataSection(ref const(ubyte)[] input)
 {
     const count = input.leb128!uint();
@@ -144,22 +162,24 @@ Data[] decodeDataSection(ref const(ubyte)[] input)
         auto memoryIndex = input.leb128!uint();
         auto offset = input.decodeExpr();
         auto size = input.leb128!uint();
-        ubyte[] init;
-        iota(size).each!(_ => init ~= input.read!ubyte());
+        ubyte[] bytes;
+        iota(size).each!(_ => bytes ~= input.read!ubyte());
         data ~= Data(
             memoryIndex: memoryIndex,
             offset: offset,
-            init: init
+            bytes: bytes
         );
     }
     return data;
 }
 
+///
 ValueType decodeValueSection(ref const(ubyte)[] input)
 {
     return cast(ValueType) input.read!ubyte();
 }
 
+///
 FuncType[] decodeTypeSection(ref const(ubyte)[] input)
 {
     FuncType[] funcTypes;
@@ -178,30 +198,33 @@ FuncType[] decodeTypeSection(ref const(ubyte)[] input)
     return funcTypes;
 }
 
+///
 uint[] decodeFunctionSection(ref const(ubyte)[] input)
 {
     uint[] funcIdxList;
-    uint count = input.leb128!uint();
+    const count = input.leb128!uint();
     foreach (_; 0..count)
     {
-        uint idx = input.leb128!uint();
+        const idx = input.leb128!uint();
         funcIdxList ~= idx;
     }
     return funcIdxList;
 }
 
+///
 Function[] decodeCodeSection(ref const(ubyte)[] input)
 {
     Function[] functions;
     const count = input.leb128!uint();
     foreach (_; 0..count)
     {
-        uint size = input.leb128!uint();
+        input.leb128!uint(); // size
         functions ~= input.decodeFunctionBody();
     }
     return functions;
 }
 
+///
 Function decodeFunctionBody(ref const(ubyte)[] input)
 {
     Function body;
@@ -226,6 +249,7 @@ Function decodeFunctionBody(ref const(ubyte)[] input)
     return body;
 }
 
+///
 Instruction decodeInstruction(ref const(ubyte)[] input)
 {
     auto op = cast(OpCode) input.read!ubyte();
@@ -256,6 +280,7 @@ Instruction decodeInstruction(ref const(ubyte)[] input)
     }
 }
 
+///
 Export[] decodeExportSection(ref const(ubyte)[] input)
 {
     const count = input.leb128!uint();
@@ -272,6 +297,7 @@ Export[] decodeExportSection(ref const(ubyte)[] input)
     return exports;
 }
 
+///
 Import[] decodeImportSection(ref const(ubyte)[] input)
 {
     const count = input.leb128!uint();
@@ -289,7 +315,7 @@ Import[] decodeImportSection(ref const(ubyte)[] input)
     return imports;
 }
 
-private string decodeName(ref const(ubyte)[] input)
+string decodeName(ref const(ubyte)[] input)
 {
     import std.range : popFrontN;
     const nameLen = input.leb128!uint();
@@ -302,7 +328,7 @@ private string decodeName(ref const(ubyte)[] input)
 unittest
 {
     import std.process;
-    auto p = executeShell(q{echo "(module)" | wasm-tools parse -});
+    const p = executeShell(q{echo "(module)" | wasm-tools parse -});
     const (ubyte)[] wasm = cast(ubyte[]) p.output;
     assert(decodeModule(wasm) == Module());
 }
@@ -311,10 +337,10 @@ unittest
 unittest
 {
     import std.process;
-    auto p = executeShell(q{echo "(module (func))" | wasm-tools parse -});
+    const p = executeShell(q{echo "(module (func))" | wasm-tools parse -});
     const (ubyte)[] wasm = cast(ubyte[]) p.output;
-    auto actual = decodeModule(wasm);
-    Module expected = {
+    const actual = decodeModule(wasm);
+    const Module expected = {
         magic: ['\0', 'a', 's', 'm'],
         version_: 1,
         typeSection: [{ params: [], results: [] }],
@@ -330,11 +356,10 @@ unittest
 unittest
 {
     import std.process;
-    auto p = executeShell(q{echo "(module (func (param i32 i64)))" | wasm-tools parse -});
+    const p = executeShell(q{echo "(module (func (param i32 i64)))" | wasm-tools parse -});
     const (ubyte)[] wasm = cast(ubyte[]) p.output;
-    auto actual = decodeModule(wasm);
-    Instruction end = End();
-    Module expected = {
+    const actual = decodeModule(wasm);
+    const Module expected = {
         magic: ['\0', 'a', 's', 'm'],
         version_: 1,
         typeSection: [{
@@ -353,10 +378,10 @@ unittest
 unittest
 {
     import std.process;
-    auto p = executeShell("wasm-tools parse source/fixtures/func_local.wat");
+    const p = executeShell("wasm-tools parse source/fixtures/func_local.wat");
     const (ubyte)[] wasm = cast(ubyte[]) p.output;
-    auto actual = decodeModule(wasm);
-    Module expected = {
+    const actual = decodeModule(wasm);
+    const Module expected = {
         magic: ['\0', 'a', 's', 'm'],
         version_: 1,
         typeSection: [{ params: [], results: [] }],
@@ -378,10 +403,10 @@ unittest
 unittest
 {
     import std.process;
-    auto p = executeShell("wasm-tools parse source/fixtures/func_add.wat");
+    const p = executeShell("wasm-tools parse source/fixtures/func_add.wat");
     const (ubyte)[] wasm = cast(ubyte[]) p.output;
-    auto actual = decodeModule(wasm);
-    Module expected = {
+    const actual = decodeModule(wasm);
+    const Module expected = {
         magic: ['\0', 'a', 's', 'm'],
         version_: 1,
         typeSection: [{
@@ -412,10 +437,10 @@ unittest
 unittest
 {
     import std.process;
-    auto p = executeShell("wasm-tools parse source/fixtures/func_call.wat");
+    const p = executeShell("wasm-tools parse source/fixtures/func_call.wat");
     const (ubyte)[] wasm = cast(ubyte[]) p.output;
-    auto actual = decodeModule(wasm);
-    Module expected = {
+    const actual = decodeModule(wasm);
+    const Module expected = {
         magic: ['\0', 'a', 's', 'm'],
         version_: 1,
         typeSection: [FuncType(
@@ -456,10 +481,10 @@ unittest
 unittest
 {
     import std.process;
-    auto p = executeShell("wasm-tools parse source/fixtures/import.wat");
+    const p = executeShell("wasm-tools parse source/fixtures/import.wat");
     const (ubyte)[] wasm = cast(ubyte[]) p.output;
-    auto actual = decodeModule(wasm);
-    Module expected = {
+    const actual = decodeModule(wasm);
+    const Module expected = {
         magic: ['\0', 'a', 's', 'm'],
         version_: 1,
         typeSection: [{
@@ -495,10 +520,10 @@ unittest
 unittest
 {
     import std.process;
-    auto p = executeShell(q{echo "(module (func (i32.store offset=4 (i32.const 4))))" | wasm-tools parse -});
+    const p = executeShell(q{echo "(module (func (i32.store offset=4 (i32.const 4))))" | wasm-tools parse -});
     const (ubyte)[] wasm = cast(ubyte[]) p.output;
-    auto actual = decodeModule(wasm);
-    Module expected = {
+    const actual = decodeModule(wasm);
+    const Module expected = {
         magic: ['\0', 'a', 's', 'm'],
         version_: 1,
         typeSection: [{ params: [], results: [] }],
@@ -535,10 +560,10 @@ unittest
     ];
     foreach (test; tests)
     {
-        auto p = executeShell(q{echo "%s" | wasm-tools parse -}.format(test[0]));
+        const p = executeShell(q{echo "%s" | wasm-tools parse -}.format(test[0]));
         const (ubyte)[] wasm = cast(ubyte[]) p.output;
-        auto actual = decodeModule(wasm);
-        Module expected = {
+        const actual = decodeModule(wasm);
+        const Module expected = {
             memorySection: [Memory(limits: test[1])]
         };
         assert(actual == expected);
@@ -555,24 +580,24 @@ unittest
         tuple(
             "source/fixtures/data.wat",
             [
-                Data(memoryIndex: 0, offset: 0, init: cast(ubyte[]) "hello")
+                Data(memoryIndex: 0, offset: 0, bytes: cast(ubyte[]) "hello")
             ]
         ),
         tuple(
             "source/fixtures/memory.wat",
             [
-                Data(memoryIndex: 0, offset: 0, init: cast(ubyte[]) "hello"),
-                Data(memoryIndex: 0, offset: 5, init: cast(ubyte[]) "world")
+                Data(memoryIndex: 0, offset: 0, bytes: cast(ubyte[]) "hello"),
+                Data(memoryIndex: 0, offset: 5, bytes: cast(ubyte[]) "world")
             ]
 
         )
     ];
     foreach (test; tests)
     {
-        auto p = executeShell("wasm-tools parse %s".format(test[0]));
+        const p = executeShell("wasm-tools parse %s".format(test[0]));
         const (ubyte)[] wasm = cast(ubyte[]) p.output;
-        auto actual = decodeModule(wasm);
-        Module expected = {
+        const actual = decodeModule(wasm);
+        const Module expected = {
             memorySection: [Memory(limits: Limits(min: 1, max: uint.max))],
             dataSection: test[1]
         };

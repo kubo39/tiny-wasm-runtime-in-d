@@ -1,5 +1,6 @@
 module binary.opcode;
 
+///
 enum OpCode : ubyte
 {
     End = 0x0B,

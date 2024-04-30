@@ -3,22 +3,19 @@ module execution.wasi;
 import execution.value;
 import execution.store;
 
-import std.array : array;
-import std.bitmanip : peek, write;
 import std.stdio;
-import std.sumtype;
-import std.system : Endian;
 import std.typecons : Nullable, nullable;
 
+///
 struct WasiSnapshotPreview1
 {
-    File[] fileTable;
-    
+    ///
     this(File[] fileTable)
     {
         this.fileTable = fileTable;
     }
 
+    ///
     Nullable!Value invoke(ref Store store, string func, Value[] args)
     {
         switch (func)
@@ -31,9 +28,14 @@ struct WasiSnapshotPreview1
         assert(false);
     }
 
+private:
     Nullable!Value fdWrite(ref Store store, Value[] args)
     {
         import std.algorithm : map;
+        import std.array : array;
+        import std.bitmanip : peek, write;
+        import std.sumtype;
+        import std.system : Endian;
 
         int[] _args = args.map!((Value arg) {
             return arg.match!(
@@ -42,9 +44,9 @@ struct WasiSnapshotPreview1
             )();
         }).array;
 
-        int fd = _args[0];
+        const fd = _args[0];
         size_t iovs = _args[1];
-        int iovsLen = _args[2];
+        const iovsLen = _args[2];
         const size_t rp = _args[3];
 
         auto file = fileTable[fd];
@@ -64,6 +66,8 @@ struct WasiSnapshotPreview1
 
         return nullable(Value(I32(0)));
     }
+
+    File[] fileTable;
 }
 
 

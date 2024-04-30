@@ -3,6 +3,7 @@ module binary.section;
 import binary.instruction;
 import binary.types;
 
+///
 enum SectionCode : ubyte
 {
     Custom = 0x00,
@@ -15,8 +16,11 @@ enum SectionCode : ubyte
     Data = 0x0b,
 }
 
+///
 struct Function
 {
+    ///
     FunctionLocal[] locals;
+    ///
     Instruction[] code;
 }

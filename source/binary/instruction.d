@@ -2,13 +2,48 @@ module binary.instruction;
 
 import std.sumtype;
 
+///
 struct End {}
-struct LocalGet { uint idx; }
-struct LocalSet { uint idx; }
-struct I32Store { uint align_; uint offset; }
-struct I32Const { int value; }
+
+///
+struct LocalGet
+{
+    ///
+    uint idx;
+}
+
+///
+struct LocalSet
+{
+    ///
+    uint idx;
+}
+
+///
+struct I32Store
+{
+    ///
+    uint align_;
+    ///
+    uint offset;
+}
+
+///
+struct I32Const
+{
+    ///
+    int value;
+}
+
+///
 struct I32Add {}
-struct Call { uint idx; }
+
+///
+struct Call
+{
+    ///
+    uint idx;
+}
 
 alias Instruction = SumType!(
     End,
@@ -20,6 +55,7 @@ alias Instruction = SumType!(
     Call,
 );
 
+///
 bool isEndInstruction(Instruction instruction)
 {
     return instruction.match!(

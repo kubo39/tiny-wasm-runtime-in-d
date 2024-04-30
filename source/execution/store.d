@@ -9,24 +9,35 @@ import std.exception : enforce;
 import std.range : zip;
 import std.sumtype;
 
-enum uint PAGESIZE = 65536;
+///
+enum uint PAGESIZE = 65_536;
 
+///
 struct Func
 {
+    ///
     ValueType[] locals;
+    ///
     Instruction[] body;
 }
 
+///
 struct InternalFuncInst
 {
+    ///
     FuncType funcType;
+    ///
     Func code;
 }
 
+///
 struct ExternalFuncInst
 {
+    ///
     string moduleName;
+    ///
     string func;
+    ///
     FuncType funcType;
 }
 
@@ -35,29 +46,42 @@ alias FuncInst = SumType!(
     ExternalFuncInst
 );
 
+///
 struct ExportInst
 {
+    ///
     string name;
+    ///
     ExportDesc desc;
 }
 
+///
 struct ModuleInst
 {
+    ///
     ExportInst[string] exports;
 }
 
+///
 struct MemoryInst
 {
+    ///
     ubyte[] data;
+    ///
     uint max;
 }
 
+///
 struct Store
 {
+    ///
     FuncInst[] funcs;
+    ///
     ModuleInst moduleInst;
+    ///
     MemoryInst[] memories;
 
+    ///
     this(Module mod)
     {
         import std.algorithm : map;
@@ -93,7 +117,7 @@ struct Store
         ExportInst[string] exports;
         foreach(exported; mod.exportSection)
         {
-            ExportInst exportInst = ExportInst(
+            const exportInst = ExportInst(
                 exported.name,
                 exported.desc
             );
@@ -114,12 +138,12 @@ struct Store
         {
             auto memory = memories[data.memoryIndex];
             size_t offset = data.offset;
-            auto init = data.init;
+            auto bytes = data.bytes;
             enforce(
-                offset + init.length <= memory.data.length,
+                offset + bytes.length <= memory.data.length,
                 "data is too large to fit in memory"
             );
-            memory.data[offset..(offset+init.length)] = init;
+            memory.data[offset..(offset+bytes.length)] = bytes;
         }
     }
 }
@@ -128,12 +152,12 @@ struct Store
 unittest
 {
     import std.process;
-    auto p = executeShell("wasm-tools parse source/fixtures/memory.wat");
+    const p = executeShell("wasm-tools parse source/fixtures/memory.wat");
     const (ubyte)[] wasm = cast(ubyte[]) p.output;
     auto mod = decodeModule(wasm);
     auto store = Store(mod);
     assert(store.memories.length == 1);
-    assert(store.memories[0].data.length == 65536);
+    assert(store.memories[0].data.length == 65_536);
     assert(store.memories[0].data[0..5] == "hello");
     assert(store.memories[0].data[5..10] == "world");
 }

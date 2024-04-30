@@ -8,36 +8,38 @@ import execution.store;
 import execution.value;
 import execution.wasi : WasiSnapshotPreview1;
 
-import std.bitmanip : write;
-import std.exception : enforce;
-import std.range : back, popBack, popBackN;
-import std.stdio;
 import std.sumtype;
-import std.system : Endian;
 import std.typecons : Nullable, nullable;
 
-alias ImportFunc = Nullable!Value delegate(ref Store, Value[]);
-alias Import = ImportFunc[string][string];
+private alias ImportFunc = Nullable!Value delegate(ref Store, Value[]);
+private alias Import = ImportFunc[string][string];
 
-struct Frame
-{
-    size_t pc;
-    size_t sp;
-    Instruction[] insts;
-    size_t arity;
-    Value[] locals;
-
-    @disable this(ref Frame);
-}
-
+///
 struct Runtime
 {
 private:
+    import std.bitmanip : write;
+    import std.exception : enforce;
+    import std.range : back, popBack, popBackN;
+    import std.stdio;
+    import std.system : Endian;
+
     Store store;
     Value[] stack;
     Frame*[] callStack;
     Import import_;
     Nullable!WasiSnapshotPreview1 wasi;
+
+    struct Frame
+    {
+        size_t pc;
+        size_t sp;
+        Instruction[] insts;
+        size_t arity;
+        Value[] locals;
+
+        @disable this(ref Frame);
+    }
 
     void execute()
     {
@@ -45,7 +47,7 @@ private:
         {
             auto frame = this.callStack.back;
             frame.pc++;
-            Instruction inst = frame.insts[frame.pc];
+            const inst = frame.insts[frame.pc];
 
             inst.match!(
                 (LocalGet localGet) {
@@ -53,7 +55,7 @@ private:
                     this.stack ~= value;
                 },
                 (LocalSet localSet) {
-                    Value value = this.stack.back;
+                    const value = this.stack.back;
                     this.stack.popBack();
                     frame.locals[localSet.idx] = value;
                 },
@@ -63,9 +65,9 @@ private:
                     stack_unwind(this.stack, frame.sp, frame.arity);
                 },
                 (I32Store i32store) {
-                    Value value_ = this.stack.back;
+                    const value_ = this.stack.back;
                     this.stack.popBack();
-                    Value valueAddr = this.stack.back;
+                    const valueAddr = this.stack.back;
                     this.stack.popBack();
                     const addr = cast(size_t) valueAddr.match!(
                         (I32 value) => value.i,
@@ -74,7 +76,7 @@ private:
                     const offset = cast(size_t) i32store.offset;
                     const at = addr + offset;
                     auto memory = this.store.memories[0];
-                    int value = value_.match!(
+                    const int value = value_.match!(
                         (I32 i32) => i32.i,
                         _ => assert(false)
                     );
@@ -85,9 +87,9 @@ private:
                 },
                 (I32Add _) {
                     // pop
-                    auto right = this.stack.back;
+                    const right = this.stack.back;
                     this.stack.popBack();
-                    auto left = this.stack.back;
+                    const left = this.stack.back;
                     this.stack.popBack();
 
                     Value result = left.match!(
@@ -185,6 +187,7 @@ private:
     }
 
 public:
+    ///
     static Runtime instantiate(const(ubyte)[] wasm)
     {
         auto mod = decodeModule(wasm);
@@ -192,6 +195,7 @@ public:
         return Runtime(store: store);
     }
 
+    ///
     static Runtime instantiate(const(ubyte)[] wasm, ref WasiSnapshotPreview1 wasi)
     {
         auto mod = decodeModule(wasm);
@@ -202,11 +206,13 @@ public:
         );
     }
 
+    ///
     void addImport(string moduleName, string funcName, ImportFunc func)
     {
         this.import_[moduleName][funcName] = func;
     }
 
+    ///
     Nullable!Value call(string name, Value[] args)
     {
         ExportInst* p = name in this.store.moduleInst.exports;
@@ -228,6 +234,7 @@ public:
 
 private void stack_unwind(ref Value[] stack, size_t sp, size_t arity)
 {
+    import std.range : back, popBack;
     if (arity > 0)
     {
         auto value = stack.back;
@@ -245,7 +252,7 @@ private void stack_unwind(ref Value[] stack, size_t sp, size_t arity)
 unittest
 {
     import std.process;
-    auto p = executeShell("wasm-tools parse source/fixtures/func_add.wat");
+    const p = executeShell("wasm-tools parse source/fixtures/func_add.wat");
     const (ubyte)[] wasm = cast(ubyte[]) p.output;
     auto runtime = Runtime.instantiate(wasm);
     const tests = [
@@ -270,7 +277,7 @@ unittest
 {
     import std.exception;
     import std.process;
-    auto p = executeShell("wasm-tools parse source/fixtures/func_add.wat");
+    const p = executeShell("wasm-tools parse source/fixtures/func_add.wat");
     const (ubyte)[] wasm = cast(ubyte[]) p.output;
     auto runtime = Runtime.instantiate(wasm);
     assertThrown(runtime.call("foooo", []));
@@ -280,7 +287,7 @@ unittest
 unittest
 {
     import std.process;
-    auto p = executeShell("wasm-tools parse source/fixtures/func_call.wat");
+    const p = executeShell("wasm-tools parse source/fixtures/func_call.wat");
     const (ubyte)[] wasm = cast(ubyte[]) p.output;
     auto runtime = Runtime.instantiate(wasm);
     const tests = [
@@ -304,7 +311,7 @@ unittest
 unittest
 {
     import std.process;
-    auto p = executeShell("wasm-tools parse source/fixtures/import.wat");
+    const p = executeShell("wasm-tools parse source/fixtures/import.wat");
     const (ubyte)[] wasm = cast(ubyte[]) p.output;
     auto runtime = Runtime.instantiate(wasm);
     runtime.addImport("env", "add", delegate Nullable!Value(_, args) {
@@ -336,7 +343,7 @@ unittest
 {
     import std.exception;
     import std.process;
-    auto p = executeShell("wasm-tools parse source/fixtures/import.wat");
+    const p = executeShell("wasm-tools parse source/fixtures/import.wat");
     const (ubyte)[] wasm = cast(ubyte[]) p.output;
     auto runtime = Runtime.instantiate(wasm);
     runtime.addImport("env", "fooooo", delegate Nullable!Value(_, _args) {
@@ -349,7 +356,7 @@ unittest
 unittest
 {
     import std.process;
-    auto p = executeShell("wasm-tools parse source/fixtures/i32_const.wat");
+    const p = executeShell("wasm-tools parse source/fixtures/i32_const.wat");
     const (ubyte)[] wasm = cast(ubyte[]) p.output;
     auto runtime = Runtime.instantiate(wasm);
     const result = runtime.call("i32_const", [Value(I32(42))]);
@@ -363,7 +370,7 @@ unittest
 unittest
 {
     import std.process;
-    auto p = executeShell("wasm-tools parse source/fixtures/local_set.wat");
+    const p = executeShell("wasm-tools parse source/fixtures/local_set.wat");
     const (ubyte)[] wasm = cast(ubyte[]) p.output;
     auto runtime = Runtime.instantiate(wasm);
     const result = runtime.call("local_set", []);
@@ -377,7 +384,7 @@ unittest
 unittest
 {
     import std.process;
-    auto p = executeShell("wasm-tools parse source/fixtures/i32_store.wat");
+    const p = executeShell("wasm-tools parse source/fixtures/i32_store.wat");
     const (ubyte)[] wasm = cast(ubyte[]) p.output;
     auto runtime = Runtime.instantiate(wasm);
     runtime.call("i32_store", []);
