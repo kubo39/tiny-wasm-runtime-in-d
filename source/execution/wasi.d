@@ -54,8 +54,8 @@ struct WasiSnapshotPreview1
 
         foreach (_; 0..iovsLen)
         {
-            const start = memory.data.peek!(int, Endian.littleEndian)(&iovs);
-            const len = memory.data.peek!(int, Endian.littleEndian)(&iovs);
+            const start = memory.data.peek!(int, Endian.littleEndian)();
+            const len = memory.data.peek!(int, Endian.littleEndian)();
             const end = start + len;
             file.rawWrite(memory.data[start..end]);
             nwritten += len;

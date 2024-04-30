@@ -10,7 +10,7 @@ import execution.wasi : WasiSnapshotPreview1;
 
 import std.bitmanip : write;
 import std.exception : enforce;
-import std.range;
+import std.range : back, popBack, popBackN;
 import std.stdio;
 import std.sumtype;
 import std.system : Endian;
@@ -123,7 +123,7 @@ private:
     {
         const bottom = this.stack.length - func.funcType.params.length;
         Value[] locals = this.stack[bottom..$];
-        this.stack = this.stack[0..bottom];
+        this.stack.popBackN(this.stack.length - bottom);
 
         foreach (local; func.code.locals)
         {
@@ -169,7 +169,7 @@ private:
     {
         const bottom = this.stack.length - func.funcType.params.length;
         Value[] args = this.stack[bottom..$];
-        this.stack = this.stack[0..bottom];
+        this.stack.popBackN(this.stack.length - bottom);
         if (func.moduleName == "wasi_snapshot_preview1")
         {
             if (!this.wasi.isNull)
