@@ -32,10 +32,11 @@ private:
 
     struct Frame
     {
-        size_t pc;
+        ptrdiff_t pc;
         size_t sp;
         Instruction[] insts;
         size_t arity;
+        Label[] labels;
         Value[] locals;
 
         @disable this(ref Frame);
@@ -50,6 +51,22 @@ private:
             const inst = frame.insts[frame.pc];
 
             inst.match!(
+                (binary.instruction.If _if) {
+                    enforce(this.stack.length, "not found value in the stack");
+                    const Value cond = this.stack.back;
+                    this.stack.popBack();
+                    if (cond == Value(I32(0)))
+                    {
+                        frame.pc = ptrdiff_t(getEndAddress(frame.insts, frame.pc));
+                    }
+                    auto label = Label(
+                        kind: LabelKind(execution.value.If()),
+                        pc: size_t(frame.pc),
+                        sp: this.stack.length,
+                        arity: _if.block.blockType.resultCount
+                    );
+                    frame.labels ~= label;
+                },
                 (LocalGet localGet) {
                     Value value = frame.locals[localGet.idx];
                     this.stack ~= value;
@@ -58,6 +75,21 @@ private:
                     const value = this.stack.back;
                     this.stack.popBack();
                     frame.locals[localSet.idx] = value;
+                },
+                (Return _) {
+                    if (frame.labels.length)
+                    {
+                        const label = frame.labels.back;
+                        frame.labels.popBack();
+                        frame.pc = ptrdiff_t(label.pc);
+                        stack_unwind(this.stack, label.sp, label.arity);
+                    }
+                    else
+                    {
+                        auto _frame = this.callStack.back;
+                        this.callStack.popBack();
+                        stack_unwind(this.stack, _frame.sp, _frame.arity);
+                    }
                 },
                 (End _) {
                     auto frame = this.callStack.back;
@@ -94,13 +126,42 @@ private:
 
                     Value result = left.match!(
                         (I32 lhs) => right.match!(
-                                (I32 rhs) => Value((lhs + rhs)),
+                                (I32 rhs) => Value(lhs + rhs),
                                 (I64 _) => assert(false, "type mismatch")
                             ),
-                        (I64 lhs) => right.match!(
-                                (I32 _) => assert(false, "type mismatch"),
-                                (I64 rhs) => Value((lhs + rhs))
-                            )
+                        _ => assert(false, "type mismatch")
+                    );
+                    this.stack ~= result;
+                },
+                (I32Sub _) {
+                    // pop
+                    const right = this.stack.back;
+                    this.stack.popBack();
+                    const left = this.stack.back;
+                    this.stack.popBack();
+
+                    Value result = left.match!(
+                        (I32 lhs) => right.match!(
+                                (I32 rhs) => Value(lhs - rhs),
+                                (I64 _) => assert(false, "type mismatch")
+                            ),
+                        _ => assert(false, "type mismatch")
+                    );
+                    this.stack ~= result;
+                },
+                (I32LtS _) {
+                    // pop
+                    const right = this.stack.back;
+                    this.stack.popBack();
+                    const left = this.stack.back;
+                    this.stack.popBack();
+
+                    Value result = left.match!(
+                        (I32 lhs) => right.match!(
+                                (I32 rhs) => Value(I32(lhs < rhs)),
+                                (I64 _) => assert(false, "type mismatch")
+                            ),
+                        _ => assert(false, "type mismatch")
                     );
                     this.stack ~= result;
                 },
@@ -114,7 +175,7 @@ private:
                             {
                                 this.stack ~= value.get;
                             }
-                        },
+                        }
                     );
                 }
             );
@@ -146,6 +207,7 @@ private:
             sp: this.stack.length,
             insts: func.code.body,
             arity: arity,
+            labels: [],
             locals: locals
         );
         this.callStack ~= frame;
@@ -229,6 +291,38 @@ public:
             (InternalFuncInst func) => invokeInternal(func),
             (ExternalFuncInst func) => invokeExternal(func),
         );
+    }
+}
+
+private size_t getEndAddress(Instruction[] insts, size_t pc)
+{
+    uint depth = 0;
+    while (true)
+    {
+        pc++;
+        const inst = insts[pc];
+
+        const isTopLevelEnd = inst.match!(
+            (binary.instruction.If _) {
+                depth++;
+                return false;
+            },
+            (End _) {
+                if (depth == 0)
+                {
+                    return true;
+                }
+                depth--;
+                return false;
+            },
+            (_) {
+                return false;
+            }
+        );
+        if (isTopLevelEnd)
+        {
+            return pc;
+        }
     }
 }
 
@@ -390,4 +484,52 @@ unittest
     runtime.call("i32_store", []);
     auto memory = runtime.store.memories[0].data;
     assert(memory[0] == 42);
+}
+
+@("i32 sub")
+unittest
+{
+    import std.process;
+    const p = executeShell("wasm-tools parse source/fixtures/func_sub.wat");
+    const (ubyte)[] wasm = cast(ubyte[]) p.output;
+    auto runtime = Runtime.instantiate(wasm);
+    const result = runtime.call("sub", [Value(I32(10)), Value(I32(5))]);
+    assert(result == Value(I32(5)));
+}
+
+@("i32 lts")
+unittest
+{
+    import std.process;
+    const p = executeShell("wasm-tools parse source/fixtures/func_lts.wat");
+    const (ubyte)[] wasm = cast(ubyte[]) p.output;
+    auto runtime = Runtime.instantiate(wasm);
+    const result = runtime.call("lts", [Value(I32(10)), Value(I32(5))]);
+    assert(result == Value(I32(0)));
+}
+
+@("fib")
+unittest
+{
+    import std.process;
+    const p = executeShell("wasm-tools parse source/fixtures/fib.wat");
+    const (ubyte)[] wasm = cast(ubyte[]) p.output;
+    auto runtime = Runtime.instantiate(wasm);
+    const tests = [
+        [1, 1],
+        [2, 2],
+        [3, 3],
+        [4, 5],
+        [5, 8],
+        [6, 13],
+        [7, 21],
+        [8, 34],
+        [9, 55],
+        [10, 89]
+    ];
+    foreach (test; tests)
+    {
+        const result = runtime.call("fib", [Value(I32(test[0]))]);
+        assert(result == Value(I32(test[1])));
+    }
 }

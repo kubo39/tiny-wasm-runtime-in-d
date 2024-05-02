@@ -1,9 +1,21 @@
 module binary.instruction;
 
+import binary.types: Block;
+
 import std.sumtype;
 
 ///
+struct If
+{
+    ///
+    Block block;
+}
+
+///
 struct End {}
+
+///
+struct Return {}
 
 ///
 struct LocalGet
@@ -36,7 +48,13 @@ struct I32Const
 }
 
 ///
+struct I32LtS {}
+
+///
 struct I32Add {}
+
+///
+struct I32Sub {}
 
 ///
 struct Call
@@ -46,12 +64,16 @@ struct Call
 }
 
 alias Instruction = SumType!(
+    If,
     End,
+    Return,
     LocalGet,
     LocalSet,
     I32Store,
     I32Const,
+    I32LtS,
     I32Add,
+    I32Sub,
     Call,
 );
 

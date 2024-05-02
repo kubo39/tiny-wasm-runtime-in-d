@@ -84,3 +84,27 @@ struct Data
     ///
     ubyte[] bytes;
 }
+
+///
+struct Block
+{
+    ///
+    BlockType blockType;
+}
+
+///
+struct Void {}
+
+alias BlockType = SumType!(
+    Void,
+    ValueType[],
+);
+
+///
+size_t resultCount(BlockType blockType)
+{
+    return blockType.match!(
+        (Void _) => 0,
+        (ValueType[] valueTypes) => valueTypes.length
+    );
+}

@@ -218,66 +218,97 @@ Function[] decodeCodeSection(ref const(ubyte)[] input)
     const count = input.leb128!uint();
     foreach (_; 0..count)
     {
-        input.leb128!uint(); // size
-        functions ~= input.decodeFunctionBody();
+        auto size = input.leb128!uint(); // func body size
+        functions ~= input.decodeFunctionBody(size);
     }
     return functions;
 }
 
 ///
-Function decodeFunctionBody(ref const(ubyte)[] input)
+Function decodeFunctionBody(ref const(ubyte)[] input, ref uint remaining)
 {
     Function body;
     const count = input.leb128!uint();
+    remaining--;
     foreach (_; 0..count)
     {
         auto typeCount = input.leb128!uint();
+        remaining--;
         auto valueType = input.decodeValueSection();
+        remaining--;
         body.locals ~= FunctionLocal(typeCount, valueType);
     }
 
-    // FIXME: 命令だけconsumeするようにしないといけない
-    while (input.length)
+    while (remaining > 0)
     {
-        auto instruction = input.decodeInstruction();
+        auto instruction = input.decodeInstruction(remaining);
         body.code ~= instruction;
-        if (instruction.isEndInstruction())
-        {
-            break;
-        }
     }
     return body;
 }
 
 ///
-Instruction decodeInstruction(ref const(ubyte)[] input)
+Instruction decodeInstruction(ref const(ubyte)[] input, ref uint remaining)
 {
     auto op = cast(OpCode) input.read!ubyte();
+    remaining--;
     switch (op)
     {
+    case OpCode.If:
+        auto block = input.decodeBlockSection(remaining);
+        return Instruction(If(block));
+    case OpCode.Return:
+        return Instruction(Return());
     case OpCode.LocalGet:
         auto idx = input.leb128!uint();
+        remaining--;
         return Instruction(LocalGet(idx));
     case OpCode.LocalSet:
         auto idx = input.leb128!uint();
+        remaining--;
         return Instruction(LocalSet(idx));
     case OpCode.I32Store:
         auto align_ = input.leb128!uint();
         auto offset = input.leb128!uint();
+        remaining -= 2;
         return Instruction(I32Store(align_, offset));
     case OpCode.I32Const:
         auto value = input.leb128!int();
+        remaining--;
         return Instruction(I32Const(value));
+    case OpCode.I32LtS:
+        return Instruction(I32LtS());
     case OpCode.I32Add:
         return Instruction(I32Add());
+    case OpCode.I32Sub:
+        return Instruction(I32Sub());
     case OpCode.End:
         return Instruction(End());
     case OpCode.Call:
         auto idx = input.leb128!uint();
+        remaining--;
         return Instruction(Call(idx));
     default:
-        assert(false, "invalid opcode");
+        import std.format : format;
+        assert(false, op.format!"invalid opcode: %d"());
     }
+}
+
+///
+Block decodeBlockSection(ref const(ubyte)[] input, ref uint remaining)
+{
+    const mark = input.read!ubyte();
+    remaining--;
+    BlockType blockType;
+    if (mark == 0x40)
+    {
+        blockType = BlockType(Void());
+    }
+    else
+    {
+        blockType = BlockType([cast(ValueType) mark]);
+    }
+    return Block(blockType: blockType);
 }
 
 ///
@@ -603,4 +634,60 @@ unittest
         };
         assert(actual == expected);
     }
+}
+
+@("decode fib")
+unittest
+{
+    import std.process;
+    const p = executeShell("wasm-tools parse source/fixtures/fib.wat");
+    const (ubyte)[] wasm = cast(ubyte[]) p.output;
+    const actual = decodeModule(wasm);
+    const Module expected = {
+        magic: ['\0', 'a', 's', 'm'],
+        version_: 1,
+        typeSection: [
+            {
+                params: [ValueType.I32],
+                results: [ValueType.I32]
+            }
+        ],
+        functionSection: [0],
+        codeSection: [
+            {
+                locals: [],
+                code: [
+                    Instruction(LocalGet(0)),
+                    Instruction(I32Const(2)),
+                    Instruction(I32LtS()),
+                    Instruction(
+                        If(Block(BlockType(Void())))
+                    ),
+                    Instruction(I32Const(1)),
+                    Instruction(Return()),
+                    Instruction(End()),
+                    Instruction(LocalGet(0)),
+                    Instruction(I32Const(2)),
+                    Instruction(I32Sub()),
+                    Instruction(Call(0)),
+                    Instruction(LocalGet(0)),
+                    Instruction(I32Const(1)),
+                    Instruction(I32Sub()),
+                    Instruction(Call(0)),
+                    Instruction(I32Add()),
+                    Instruction(Return()),
+                    Instruction(End())
+                ]
+            }
+        ]
+        ,
+        exportSection: [
+            Export(
+                name: "fib",
+                desc: ExportDesc(Func(0)),
+            )
+        ],
+        importSection: []
+    };
+    assert(actual == expected);
 }
