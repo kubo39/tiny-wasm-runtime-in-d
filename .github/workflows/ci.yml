@@ -3,12 +3,14 @@ on:
     paths-ignore:
       - "*.md"
       - ".gitignore"
+      - "LICENSE*"
   push:
     branches:
       - "main"
     paths-ignore:
       - "*.md"
       - ".gitignore"
+      - "LICENSE*"
 
 jobs:
   lint:
