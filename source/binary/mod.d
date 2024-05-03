@@ -1,6 +1,7 @@
 module binary.mod;
 
 import binary.instruction;
+import binary.leb128;
 import binary.opcode;
 import binary.section;
 import binary.types;
@@ -102,21 +103,6 @@ Module decodeModule(ref const(ubyte)[] input)
 }
 
 private:
-
-uint leb128(T)(ref const(ubyte)[] input)
-    if (is(T == int) || is(T == uint))
-{
-    T val = 0;
-    uint shift = 0;
-    while (true)
-    {
-        const b = input.read!ubyte();
-        val |= (b & 0x7F) << shift;
-        if ((b & 0x80) == 0) break;
-        shift += 7;
-    }
-    return val;
-}
 
 ///
 Tuple!(SectionCode, uint) decodeSectionHeader(ref const(ubyte)[] input)
