@@ -1,5 +1,7 @@
 module binary.types;
 
+import binary.instruction;
+
 import std.sumtype;
 
 ///
@@ -80,7 +82,7 @@ struct Data
     ///
     uint memoryIndex;
     ///
-    uint offset;
+    const(Instruction)[] offset;
     ///
     const(ubyte)[] bytes;
 }

@@ -137,11 +137,14 @@ struct Store
             );
         }
 
-        foreach (data; mod.dataSection)
+        foreach (segment; mod.dataSection)
         {
-            auto memory = memories[data.memoryIndex];
-            size_t offset = data.offset;
-            auto bytes = data.bytes;
+            auto memory = memories[segment.memoryIndex];
+            const offset = segment.offset[$-1].match!(
+                (I32Const i32const) => size_t(i32const.value),
+                _ => enforce(false, "unexpected instrcution for offset")
+            );
+            auto bytes = segment.bytes;
             enforce(
                 offset + bytes.length <= memory.data.length,
                 "data is too large to fit in memory"

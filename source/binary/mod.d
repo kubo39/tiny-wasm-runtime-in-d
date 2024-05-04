@@ -9,7 +9,7 @@ import binary.types;
 import std.algorithm : each;
 import std.bitmanip : read;
 import std.exception : enforce;
-import std.range : popFrontExactly;
+import std.range : front, popFront, popFrontExactly;
 import std.system : Endian;
 import std.typecons : Tuple, tuple;
 
@@ -116,12 +116,19 @@ Limits decodeLimits(ref const(ubyte)[] input)
 }
 
 ///
-uint decodeExpr(ref const(ubyte)[] input)
+const(Instruction)[] decodeExpr(ref const(ubyte)[] input)
 {
-    input.leb128!uint(); // i32.const
-    auto offset = input.leb128!uint();
-    input.leb128!uint(); // end
-    return offset;
+    typeof(return) insns = [];
+    while (true)
+    {
+        if (0x0b == input.front)
+        {
+            input.popFront();
+            return insns;
+        }
+        insns ~= input.decodeInstruction();
+    }
+    assert(false);
 }
 
 ///
@@ -217,6 +224,15 @@ Function decodeFunctionBody(ref const(ubyte)[] input, ref uint remaining)
         body.code ~= instruction;
     }
     return body;
+}
+
+///
+Instruction decodeInstruction(ref const(ubyte)[] input)
+{
+    // FIXME: use @("nolint(dscanner.could_be_immutable_check)")
+    // once it works someday...
+    uint dummy;
+    return decodeInstruction(input, dummy);
 }
 
 ///
@@ -586,14 +602,26 @@ unittest
         tuple(
             "source/fixtures/data.wat",
             [
-                Data(memoryIndex: 0, offset: 0, bytes: cast(ubyte[]) "hello")
+                Data(
+                    memoryIndex: 0,
+                    offset: [Instruction(I32Const(0))],
+                    bytes: cast(ubyte[]) "hello"
+                )
             ]
         ),
         tuple(
             "source/fixtures/memory.wat",
             [
-                Data(memoryIndex: 0, offset: 0, bytes: cast(ubyte[]) "hello"),
-                Data(memoryIndex: 0, offset: 5, bytes: cast(ubyte[]) "world")
+                Data(
+                    memoryIndex: 0,
+                    offset: [Instruction(I32Const(0))],
+                    bytes: cast(ubyte[]) "hello"
+                ),
+                Data(
+                    memoryIndex: 0,
+                    offset: [Instruction(I32Const(5))],
+                    bytes: cast(ubyte[]) "world"
+                )
             ]
 
         )
