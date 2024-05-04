@@ -9,7 +9,7 @@ import binary.types;
 import std.algorithm : each;
 import std.bitmanip : read;
 import std.exception : enforce;
-import std.range : iota;
+import std.range : popFrontExactly;
 import std.system : Endian;
 import std.typecons : Tuple, tuple;
 
@@ -148,8 +148,8 @@ Data[] decodeDataSection(ref const(ubyte)[] input)
         auto memoryIndex = input.leb128!uint();
         auto offset = input.decodeExpr();
         auto size = input.leb128!uint();
-        ubyte[] bytes;
-        iota(size).each!(_ => bytes ~= input.read!ubyte());
+        auto bytes = cast(ubyte[]) input[0..size];
+        input.popFrontExactly(size);
         data ~= Data(
             memoryIndex: memoryIndex,
             offset: offset,
@@ -174,11 +174,11 @@ FuncType[] decodeTypeSection(ref const(ubyte)[] input)
     {
         input.read!ubyte();
         uint size = input.leb128!uint();
-        ValueType[] params;
-        iota(size).each!(_ => params ~= input.decodeValueSection());
+        auto params = cast(ValueType[]) input[0..size];
+        input.popFrontExactly(size);
         size = input.leb128!uint();
-        ValueType[] results;
-        iota(size).each!(_ => results ~= input.decodeValueSection());
+        auto results = cast(ValueType[]) input[0..size];
+        input.popFrontExactly(size);
         funcTypes ~= FuncType(params, results);
     }
     return funcTypes;
@@ -334,10 +334,9 @@ Import[] decodeImportSection(ref const(ubyte)[] input)
 
 string decodeName(ref const(ubyte)[] input)
 {
-    import std.range : popFrontN;
     const nameLen = input.leb128!uint();
     auto name = cast(string) input[0..nameLen];
-    input.popFrontN(nameLen);
+    input.popFrontExactly(nameLen);
     return name;
 }
 
