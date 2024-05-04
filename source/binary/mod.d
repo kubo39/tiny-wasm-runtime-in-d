@@ -232,7 +232,7 @@ Instruction decodeInstruction(ref const(ubyte)[] input)
     // FIXME: use @("nolint(dscanner.could_be_immutable_check)")
     // once it works someday...
     uint dummy;
-    return decodeInstruction(input, dummy);
+    return decodeInstruction(input, *&dummy);
 }
 
 ///
