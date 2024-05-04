@@ -121,7 +121,7 @@ const(Instruction)[] decodeExpr(ref const(ubyte)[] input)
     typeof(return) insns = [];
     while (true)
     {
-        if (0x0b == input.front)
+        if (OpCode.End == input.front)
         {
             input.popFront();
             return insns;
