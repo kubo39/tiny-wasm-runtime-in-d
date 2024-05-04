@@ -48,7 +48,7 @@ struct I64
     ///
     int opCmp(I64 rhs) const
     {
-        return i < rhs.i;
+        return (i > rhs.i) - (i < rhs.i);
     }
 }
 
