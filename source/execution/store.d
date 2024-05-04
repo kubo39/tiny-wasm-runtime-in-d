@@ -8,6 +8,7 @@ import std.bitmanip : write;
 import std.exception : enforce;
 import std.range : zip;
 import std.sumtype;
+import std.typecons : Nullable;
 
 ///
 enum uint PAGESIZE = 65_536;
@@ -68,7 +69,7 @@ struct MemoryInst
     ///
     ubyte[] data;
     ///
-    uint max;
+    Nullable!uint max;
 }
 
 ///

@@ -11,7 +11,7 @@ import std.bitmanip : read;
 import std.exception : enforce;
 import std.range : front, popFront, popFrontExactly;
 import std.system : Endian;
-import std.typecons : Tuple, tuple;
+import std.typecons : Nullable, nullable, Tuple, tuple;
 
 ///
 struct Module
@@ -102,7 +102,7 @@ Tuple!(SectionCode, uint) decodeSectionHeader(ref const(ubyte)[] input)
 const(Memory) decodeMemorySection(ref const(ubyte)[] input)
 {
     input.leb128!uint();
-    const limits = decodeLimits(input);
+    const limits = input.decodeLimits();
     return Memory(limits: limits);
 }
 
@@ -111,7 +111,7 @@ Limits decodeLimits(ref const(ubyte)[] input)
 {
     const flags = input.leb128!uint();
     const min = input.leb128!uint();
-    const max = flags == 0 ? uint.max : input.leb128!uint();
+    const max = flags == 0 ? Nullable!uint.init : nullable(input.leb128!uint());
     return Limits(min: min, max: max);
 }
 
@@ -577,8 +577,8 @@ unittest
     import std.process;
     import std.typecons;
     const tests = [
-        tuple("(module (memory 1))", Limits(min: 1, max: uint.max)),
-        tuple("(module (memory 1 2))", Limits(min: 1, max: 2))
+        tuple("(module (memory 1))", Limits(min: 1, max: Nullable!uint.init)),
+        tuple("(module (memory 1 2))", Limits(min: 1, max: nullable(2u)))
     ];
     foreach (test; tests)
     {
@@ -632,7 +632,7 @@ unittest
         const (ubyte)[] wasm = cast(ubyte[]) p.output;
         const actual = decodeModule(wasm);
         const Module expected = {
-            memorySection: [Memory(limits: Limits(min: 1, max: uint.max))],
+            memorySection: [Memory(limits: Limits(min: 1, max: Nullable!uint.init))],
             dataSection: test[1]
         };
         assert(actual == expected);

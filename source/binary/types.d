@@ -3,6 +3,7 @@ module binary.types;
 import binary.instruction;
 
 import std.sumtype;
+import std.typecons : Nullable;
 
 ///
 struct FuncType
@@ -66,7 +67,7 @@ struct Limits
     ///
     uint min;
     ///
-    uint max;
+    Nullable!uint max;
 }
 
 ///
