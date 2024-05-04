@@ -12,7 +12,7 @@ struct FuncType
 }
 
 ///
-enum ValueType
+enum ValueType : ubyte
 {
     I32 = 0x7F,
     I64 = 0x7E,
