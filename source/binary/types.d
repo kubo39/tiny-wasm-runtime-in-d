@@ -6,9 +6,9 @@ import std.sumtype;
 struct FuncType
 {
     ///
-    ValueType[] params;
+    const(ValueType[]) params;
     ///
-    ValueType[] results;
+    const(ValueType[]) results;
 }
 
 ///
@@ -82,7 +82,7 @@ struct Data
     ///
     uint offset;
     ///
-    ubyte[] bytes;
+    const(ubyte)[] bytes;
 }
 
 ///

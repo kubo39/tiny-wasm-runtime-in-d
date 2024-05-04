@@ -20,7 +20,7 @@ enum SectionCode : ubyte
 struct Function
 {
     ///
-    FunctionLocal[] locals;
+    const(FunctionLocal)[] locals;
     ///
-    Instruction[] code;
+    const(Instruction)[] code;
 }

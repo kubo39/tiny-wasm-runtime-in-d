@@ -34,7 +34,7 @@ private:
     {
         ptrdiff_t pc;
         size_t sp;
-        Instruction[] insts;
+        const(Instruction)[] insts;
         size_t arity;
         Label[] labels;
         Value[] locals;
@@ -277,12 +277,12 @@ public:
     ///
     Nullable!Value call(string name, Value[] args)
     {
-        ExportInst* p = name in this.store.moduleInst.exports;
+        const ExportInst* p = name in this.store.moduleInst.exports;
         enforce(p !is null, "not found export function");
-        auto idx = (*p).desc.match!(
+        const idx = (*p).desc.match!(
             (binary.types.Func func) => func.idx
         );
-        auto funcInst = this.store.funcs[idx];
+        const funcInst = this.store.funcs[idx];
         foreach (arg; args)
         {
             this.stack ~= arg;
@@ -294,7 +294,7 @@ public:
     }
 }
 
-private size_t getEndAddress(Instruction[] insts, size_t pc)
+private size_t getEndAddress(const(Instruction)[] insts, size_t pc)
 {
     uint depth = 0;
     while (true)

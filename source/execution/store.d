@@ -16,9 +16,9 @@ enum uint PAGESIZE = 65_536;
 struct Func
 {
     ///
-    ValueType[] locals;
+    const(ValueType)[] locals;
     ///
-    Instruction[] body;
+    const(Instruction)[] body;
 }
 
 ///
@@ -59,7 +59,7 @@ struct ExportInst
 struct ModuleInst
 {
     ///
-    ExportInst[string] exports;
+    const(ExportInst)[string] exports;
 }
 
 ///
@@ -75,7 +75,7 @@ struct MemoryInst
 struct Store
 {
     ///
-    FuncInst[] funcs;
+    const(FuncInst)[] funcs;
     ///
     ModuleInst moduleInst;
     ///
@@ -96,11 +96,11 @@ struct Store
             ));
         }).array;
 
-        auto funcTypeIdxs = mod.functionSection;
+        const funcTypeIdxs = mod.functionSection;
         foreach (body, idx; mod.codeSection.zip(funcTypeIdxs))
         {
-            auto funcType = mod.typeSection[idx];
-            ValueType[] locals;
+            const funcType = mod.typeSection[idx];
+            const(ValueType)[] locals;
             foreach (local; body.locals)
             {
                 foreach (_; 0..local.typeCount)
@@ -110,7 +110,10 @@ struct Store
             }
             funcs ~= FuncInst(InternalFuncInst(
                 funcType: funcType,
-                code: Func(locals: locals, body: body.code)
+                code: Func(
+                    locals: locals,
+                    body: body.code
+                )
             ));
         }
 
@@ -118,8 +121,8 @@ struct Store
         foreach(exported; mod.exportSection)
         {
             const exportInst = ExportInst(
-                exported.name,
-                exported.desc
+                name: exported.name,
+                desc: exported.desc
             );
             exports[exported.name] = exportInst;
         }

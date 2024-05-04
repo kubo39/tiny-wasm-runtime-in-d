@@ -21,19 +21,19 @@ struct Module
     ///
     immutable uint version_ = 1;
     ///
-    Memory[] memorySection;
+    const(Memory)[] memorySection;
     ///
-    Data[] dataSection;
+    const(Data)[] dataSection;
     ///
-    FuncType[] typeSection;
+    const(FuncType)[] typeSection;
     ///
-    uint[] functionSection;
+    const(uint)[] functionSection;
     ///
     Function[] codeSection;
     ///
-    Export[] exportSection;
+    const(Export)[] exportSection;
     ///
-    Import[] importSection;
+    const(Import)[] importSection;
 }
 
 ///
@@ -44,20 +44,14 @@ Module decodeModule(ref const(ubyte)[] input)
     enforce('a' == input.read!ubyte());
     enforce('s' == input.read!ubyte());
     enforce('m' == input.read!ubyte());
-    auto version_ = input.read!(uint, Endian.littleEndian)();
+    const version_ = input.read!(uint, Endian.littleEndian)();
     enforce(version_ == 1);
 
-    Memory[] memorySection;
-    Data[] dataSection;
-    FuncType[] typeSection;
-    uint[] functionSection;
-    Function[] codeSection;
-    Export[] exportSection;
-    Import[] importSection;
+    Module mod;
 
     while (input.length)
     {
-        auto sectionHeader = decodeSectionHeader(input);
+        const sectionHeader = decodeSectionHeader(input);
         switch (sectionHeader[0])
         {
         case SectionCode.Custom:
@@ -66,40 +60,32 @@ Module decodeModule(ref const(ubyte)[] input)
             break;
         case SectionCode.Memory:
             const memory = decodeMemorySection(input);
-            memorySection = [memory];
+            mod.memorySection = [memory];
             break;
         case SectionCode.Data:
-            dataSection = decodeDataSection(input);
+            mod.dataSection = decodeDataSection(input);
             break;
         case SectionCode.Type:
-            typeSection = decodeTypeSection(input);
+            mod.typeSection = decodeTypeSection(input);
             break;
         case SectionCode.Function:
-            functionSection = decodeFunctionSection(input);
+            mod.functionSection = decodeFunctionSection(input);
             break;
         case SectionCode.Code:
-            codeSection = decodeCodeSection(input);
+            mod.codeSection = decodeCodeSection(input);
             break;
         case SectionCode.Export:
-            exportSection = decodeExportSection(input);
+            mod.exportSection = decodeExportSection(input);
             break;
         case SectionCode.Import:
-            importSection = decodeImportSection(input);
+            mod.importSection = decodeImportSection(input);
             break;
         default:
             assert(false);
         }
     }
 
-    return Module(
-        memorySection: memorySection,
-        dataSection: dataSection,
-        typeSection: typeSection,
-        functionSection: functionSection,
-        codeSection: codeSection,
-        exportSection: exportSection,
-        importSection: importSection
-    );
+    return mod;
 }
 
 private:
@@ -107,16 +93,16 @@ private:
 ///
 Tuple!(SectionCode, uint) decodeSectionHeader(ref const(ubyte)[] input)
 {
-    auto code = cast(SectionCode) input.read!ubyte();
+    auto code = input.read!SectionCode();
     auto size = input.leb128!uint();
     return tuple(code, size);
 }
 
 ///
-Memory decodeMemorySection(ref const(ubyte)[] input)
+const(Memory) decodeMemorySection(ref const(ubyte)[] input)
 {
     input.leb128!uint();
-    auto limits = decodeLimits(input);
+    const limits = decodeLimits(input);
     return Memory(limits: limits);
 }
 
@@ -124,8 +110,8 @@ Memory decodeMemorySection(ref const(ubyte)[] input)
 Limits decodeLimits(ref const(ubyte)[] input)
 {
     const flags = input.leb128!uint();
-    auto min = input.leb128!uint();
-    auto max = flags == 0 ? uint.max : input.leb128!uint();
+    const min = input.leb128!uint();
+    const max = flags == 0 ? uint.max : input.leb128!uint();
     return Limits(min: min, max: max);
 }
 
@@ -139,16 +125,16 @@ uint decodeExpr(ref const(ubyte)[] input)
 }
 
 ///
-Data[] decodeDataSection(ref const(ubyte)[] input)
+const(Data)[] decodeDataSection(ref const(ubyte)[] input)
 {
     const count = input.leb128!uint();
-    Data[] data;
+    const(Data)[] data;
     foreach (_; 0..count)
     {
-        auto memoryIndex = input.leb128!uint();
-        auto offset = input.decodeExpr();
-        auto size = input.leb128!uint();
-        auto bytes = cast(ubyte[]) input[0..size];
+        const memoryIndex = input.leb128!uint();
+        const offset = input.decodeExpr();
+        const size = input.leb128!uint();
+        const(ubyte)[] bytes = input[0..size];
         input.popFrontExactly(size);
         data ~= Data(
             memoryIndex: memoryIndex,
@@ -162,32 +148,32 @@ Data[] decodeDataSection(ref const(ubyte)[] input)
 ///
 ValueType decodeValueSection(ref const(ubyte)[] input)
 {
-    return cast(ValueType) input.read!ubyte();
+    return input.read!ValueType();
 }
 
 ///
-FuncType[] decodeTypeSection(ref const(ubyte)[] input)
+const(FuncType)[] decodeTypeSection(ref const(ubyte)[] input)
 {
-    FuncType[] funcTypes;
+    const(FuncType)[] funcTypes;
     const count = input.leb128!uint();
     foreach (_; 0..count)
     {
         input.read!ubyte();
         uint size = input.leb128!uint();
-        auto params = cast(ValueType[]) input[0..size];
+        const params = cast(const(ValueType[])) input[0..size];
         input.popFrontExactly(size);
         size = input.leb128!uint();
-        auto results = cast(ValueType[]) input[0..size];
+        const results = cast(const(ValueType[])) input[0..size];
         input.popFrontExactly(size);
-        funcTypes ~= FuncType(params, results);
+        funcTypes ~= FuncType(params: params, results: results);
     }
     return funcTypes;
 }
 
 ///
-uint[] decodeFunctionSection(ref const(ubyte)[] input)
+const(uint)[] decodeFunctionSection(ref const(ubyte)[] input)
 {
-    uint[] funcIdxList;
+    const(uint)[] funcIdxList;
     const count = input.leb128!uint();
     foreach (_; 0..count)
     {
@@ -227,7 +213,7 @@ Function decodeFunctionBody(ref const(ubyte)[] input, ref uint remaining)
 
     while (remaining > 0)
     {
-        auto instruction = input.decodeInstruction(remaining);
+        const instruction = input.decodeInstruction(remaining);
         body.code ~= instruction;
     }
     return body;
@@ -236,30 +222,30 @@ Function decodeFunctionBody(ref const(ubyte)[] input, ref uint remaining)
 ///
 Instruction decodeInstruction(ref const(ubyte)[] input, ref uint remaining)
 {
-    auto op = cast(OpCode) input.read!ubyte();
+    const op = input.read!OpCode();
     remaining--;
     switch (op)
     {
     case OpCode.If:
-        auto block = input.decodeBlockSection(remaining);
+        const block = input.decodeBlockSection(remaining);
         return Instruction(If(block));
     case OpCode.Return:
         return Instruction(Return());
     case OpCode.LocalGet:
-        auto idx = input.leb128!uint();
+        const idx = input.leb128!uint();
         remaining--;
         return Instruction(LocalGet(idx));
     case OpCode.LocalSet:
-        auto idx = input.leb128!uint();
+        const idx = input.leb128!uint();
         remaining--;
         return Instruction(LocalSet(idx));
     case OpCode.I32Store:
-        auto align_ = input.leb128!uint();
-        auto offset = input.leb128!uint();
+        const align_ = input.leb128!uint();
+        const offset = input.leb128!uint();
         remaining -= 2;
         return Instruction(I32Store(align_, offset));
     case OpCode.I32Const:
-        auto value = input.leb128!int();
+        const value = input.leb128!int();
         remaining--;
         return Instruction(I32Const(value));
     case OpCode.I32LtS:
@@ -271,7 +257,7 @@ Instruction decodeInstruction(ref const(ubyte)[] input, ref uint remaining)
     case OpCode.End:
         return Instruction(End());
     case OpCode.Call:
-        auto idx = input.leb128!uint();
+        const idx = input.leb128!uint();
         remaining--;
         return Instruction(Call(idx));
     default:
@@ -298,36 +284,40 @@ Block decodeBlockSection(ref const(ubyte)[] input, ref uint remaining)
 }
 
 ///
-Export[] decodeExportSection(ref const(ubyte)[] input)
+const(Export)[] decodeExportSection(ref const(ubyte)[] input)
 {
     const count = input.leb128!uint();
-    Export[] exports;
+    const(Export)[] exports;
     foreach (_; 0..count)
     {
-        string name = input.decodeName();
+        const name = input.decodeName();
         const exportKind = input.read!ubyte();
         enforce(exportKind == 0x0, "unsupported export kind");
-        auto idx = input.leb128!uint();
+        const idx = input.leb128!uint();
         ExportDesc desc = Func(idx);
-        exports ~= Export(name, desc);
+        exports ~= Export(name: name, desc: desc);
     }
     return exports;
 }
 
 ///
-Import[] decodeImportSection(ref const(ubyte)[] input)
+const(Import)[] decodeImportSection(ref const(ubyte)[] input)
 {
     const count = input.leb128!uint();
-    Import[] imports;
+    const(Import)[] imports;
     foreach (_; 0..count)
     {
-        auto moduleName = input.decodeName();
-        auto field = input.decodeName();
-        auto importKind = input.read!ubyte();
+        const moduleName = input.decodeName();
+        const field = input.decodeName();
+        const importKind = input.read!ubyte();
         enforce(importKind == 0x00, "unsupported import kind");
         auto idx = input.leb128!uint();
         ImportDesc desc = Func(idx);
-        imports ~= Import(moduleName, field, desc);
+        imports ~= Import(
+            moduleName: moduleName,
+            field: field,
+            desc: desc
+        );
     }
     return imports;
 }
