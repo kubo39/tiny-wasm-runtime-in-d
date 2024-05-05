@@ -229,8 +229,8 @@ Function decodeFunctionBody(ref const(ubyte)[] input, ref uint remaining)
 ///
 Instruction decodeInstruction(ref const(ubyte)[] input)
 {
-    // FIXME: use @("nolint(dscanner.could_be_immutable_check)")
-    // once it works someday...
+    // FIXME: use @("nolint(dscanner.suspicious.unmodified)")
+    //  for the variable declaration, once it works someday...
     uint dummy;
     return decodeInstruction(input, *&dummy);
 }
