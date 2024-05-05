@@ -97,21 +97,19 @@ private:
                     stack_unwind(this.stack, frame.sp, frame.arity);
                 },
                 (I32Store i32store) {
-                    const value_ = this.stack.back;
-                    this.stack.popBack();
-                    const valueAddr = this.stack.back;
-                    this.stack.popBack();
-                    const addr = cast(size_t) valueAddr.match!(
-                        (I32 value) => value.i,
-                        _ => assert(false)
-                    );
-                    const offset = cast(size_t) i32store.offset;
-                    const at = addr + offset;
-                    auto memory = this.store.memories[0];
-                    const int value = value_.match!(
+                    const value = this.stack.back.match!(
                         (I32 i32) => i32.i,
                         _ => assert(false)
                     );
+                    this.stack.popBack();
+                    const addr = this.stack.back.match!(
+                        (I32 value) => size_t(value.i),
+                        _ => assert(false)
+                    );
+                    this.stack.popBack();
+                    const offset = size_t(i32store.offset);
+                    const at = addr + offset;
+                    auto memory = this.store.memories[0];
                     memory.data.write!(int, Endian.littleEndian)(value, at);
                 },
                 (I32Const i32const) {
@@ -283,10 +281,7 @@ public:
             (binary.types.Func func) => func.idx
         );
         const funcInst = this.store.funcs[idx];
-        foreach (arg; args)
-        {
-            this.stack ~= arg;
-        }
+        this.stack ~= args;
         return funcInst.match!(
             (InternalFuncInst func) => invokeInternal(func),
             (ExternalFuncInst func) => invokeExternal(func),
