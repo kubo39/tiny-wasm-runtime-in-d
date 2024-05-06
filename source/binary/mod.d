@@ -101,7 +101,7 @@ Tuple!(SectionCode, uint) decodeSectionHeader(ref const(ubyte)[] input)
 ///
 const(Memory) decodeMemorySection(ref const(ubyte)[] input)
 {
-    input.leb128!uint();
+    input.leb128!uint(); // size
     const limits = input.decodeLimits();
     return Memory(limits: limits);
 }
