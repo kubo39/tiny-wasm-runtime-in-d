@@ -7,6 +7,7 @@ import binary.section;
 import binary.types;
 
 import std.algorithm : each;
+import std.array : appender, array;
 import std.bitmanip : read;
 import std.exception : enforce;
 import std.range : front, popFront, popFrontExactly;
@@ -118,13 +119,13 @@ Limits decodeLimits(ref const(ubyte)[] input)
 ///
 const(Instruction)[] decodeExpr(ref const(ubyte)[] input)
 {
-    typeof(return) insns = [];
+    auto insns = appender!(const(Instruction)[]);
     while (true)
     {
         if (OpCode.End == input.front)
         {
             input.popFront();
-            return insns;
+            return insns.array;
         }
         insns ~= input.decodeInstruction();
     }
@@ -135,7 +136,8 @@ const(Instruction)[] decodeExpr(ref const(ubyte)[] input)
 const(Data)[] decodeDataSection(ref const(ubyte)[] input)
 {
     const count = input.leb128!uint();
-    const(Data)[] data;
+    auto data = appender!(const(Data)[]);
+    data.reserve(count);
     foreach (_; 0..count)
     {
         const memoryIndex = input.leb128!uint();
@@ -149,7 +151,7 @@ const(Data)[] decodeDataSection(ref const(ubyte)[] input)
             bytes: bytes
         );
     }
-    return data;
+    return data.array;
 }
 
 ///
@@ -161,8 +163,9 @@ ValueType decodeValueSection(ref const(ubyte)[] input)
 ///
 const(FuncType)[] decodeTypeSection(ref const(ubyte)[] input)
 {
-    const(FuncType)[] funcTypes;
+    auto funcTypes = appender!(const(FuncType)[]);
     const count = input.leb128!uint();
+    funcTypes.reserve(count);
     foreach (_; 0..count)
     {
         input.read!ubyte();
@@ -174,33 +177,35 @@ const(FuncType)[] decodeTypeSection(ref const(ubyte)[] input)
         input.popFrontExactly(size);
         funcTypes ~= FuncType(params: params, results: results);
     }
-    return funcTypes;
+    return funcTypes.array;
 }
 
 ///
 const(uint)[] decodeFunctionSection(ref const(ubyte)[] input)
 {
-    const(uint)[] funcIdxList;
+    auto funcIdxList = appender!(const(uint)[]);
     const count = input.leb128!uint();
+    funcIdxList.reserve(count);
     foreach (_; 0..count)
     {
         const idx = input.leb128!uint();
         funcIdxList ~= idx;
     }
-    return funcIdxList;
+    return funcIdxList.array;
 }
 
 ///
 Function[] decodeCodeSection(ref const(ubyte)[] input)
 {
-    Function[] functions;
+    auto functions = appender!(Function[]);
     const count = input.leb128!uint();
+    functions.reserve(count);
     foreach (_; 0..count)
     {
         auto size = input.leb128!uint(); // func body size
         functions ~= input.decodeFunctionBody(size);
     }
-    return functions;
+    return functions.array;
 }
 
 ///
@@ -302,8 +307,9 @@ Block decodeBlockSection(ref const(ubyte)[] input, ref uint remaining)
 ///
 const(Export)[] decodeExportSection(ref const(ubyte)[] input)
 {
+    auto exports = appender!(const(Export)[]);
     const count = input.leb128!uint();
-    const(Export)[] exports;
+    exports.reserve(count);
     foreach (_; 0..count)
     {
         const name = input.decodeName();
@@ -313,14 +319,15 @@ const(Export)[] decodeExportSection(ref const(ubyte)[] input)
         ExportDesc desc = Func(idx);
         exports ~= Export(name: name, desc: desc);
     }
-    return exports;
+    return exports.array;
 }
 
 ///
 const(Import)[] decodeImportSection(ref const(ubyte)[] input)
 {
+    auto imports = appender!(const(Import)[]);
     const count = input.leb128!uint();
-    const(Import)[] imports;
+    imports.reserve(count);
     foreach (_; 0..count)
     {
         const moduleName = input.decodeName();
@@ -335,7 +342,7 @@ const(Import)[] decodeImportSection(ref const(ubyte)[] input)
             desc: desc
         );
     }
-    return imports;
+    return imports.array;
 }
 
 string decodeName(ref const(ubyte)[] input)

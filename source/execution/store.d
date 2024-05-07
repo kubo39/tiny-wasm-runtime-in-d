@@ -4,6 +4,7 @@ import binary.instruction;
 import binary.mod;
 import binary.types;
 
+import std.array : appender, array;
 import std.bitmanip : write;
 import std.exception : enforce;
 import std.range : zip;
@@ -101,7 +102,7 @@ struct Store
         foreach (body, idx; mod.codeSection.zip(funcTypeIdxs))
         {
             const funcType = mod.typeSection[idx];
-            const(ValueType)[] locals;
+            auto locals = appender!(const(ValueType)[]);
             foreach (local; body.locals)
             {
                 foreach (_; 0..local.typeCount)
@@ -112,7 +113,7 @@ struct Store
             funcs ~= FuncInst(InternalFuncInst(
                 funcType: funcType,
                 code: Func(
-                    locals: locals,
+                    locals: locals.array,
                     body: body.code
                 )
             ));
